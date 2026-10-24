@@ -22,11 +22,13 @@ import { EscrowToolbar } from "./escrow/EscrowToolbar";
 import { Pagination } from "./escrow/Pagination";
 import { ExportMenu } from "./escrow/ExportMenu";
 import { DisputeDialog } from "./disputes/DisputeDialog";
+import { useConfirm } from "@/components/ui/ConfirmProvider";
 
 const short = (a: string) =>
   a.length > 14 ? `${a.slice(0, 6)}...${a.slice(-4)}` : a;
 
 export function EscrowDashboard() {
+  const confirm = useConfirm();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -368,15 +370,22 @@ export function EscrowDashboard() {
                       Dispute
                     </button>
                     <button
-                      className="btn btn-secondary btn-sm"
+                      className="btn btn-danger btn-sm"
                       disabled={busy === c.id}
-                      onClick={() =>
-                        act(c.id, () =>
-                          api(`/api/v1/contracts/${c.id}/cancel`, {
-                            method: "POST",
-                          }),
-                        )
-                      }
+                      onClick={async () => {
+                        const held = c.fundedAmount - c.releasedAmount;
+                        const confirmed = await confirm({
+                          title: `Cancel escrow #${c.id}?`,
+                          description: `Refund ${held} ${c.token} to the client and close escrow #${c.id}. This cannot be undone.`,
+                          tone: 'danger',
+                          confirmLabel: 'Cancel escrow',
+                          cancelLabel: 'Keep escrow',
+                          requireText: held > 0 ? String(c.id) : undefined,
+                        });
+                        if (confirmed) {
+                          act(c.id, () => api(`/api/v1/contracts/${c.id}/cancel`, { method: 'POST' }));
+                        }
+                      }}
                     >
                       Cancel
                     </button>
