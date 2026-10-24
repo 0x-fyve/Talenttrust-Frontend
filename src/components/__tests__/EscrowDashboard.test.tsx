@@ -252,7 +252,7 @@ describe('EscrowDashboard cancel confirmation', () => {
     const user = userEvent.setup();
     renderDashboard();
 
-    await user.click(await screen.findByRole('button', { name: 'Cancel' }));
+    await user.click(await screen.findByRole('button', { name: /^Cancel escrow #7 / }));
     await screen.findByRole('dialog');
     await user.click(screen.getByRole('button', { name: 'Keep escrow' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
@@ -264,7 +264,7 @@ describe('EscrowDashboard cancel confirmation', () => {
     const user = userEvent.setup();
     renderDashboard();
 
-    await user.click(await screen.findByRole('button', { name: 'Cancel' }));
+    await user.click(await screen.findByRole('button', { name: /^Cancel escrow #7 / }));
     await screen.findByRole('dialog');
     await user.keyboard('{Escape}');
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
@@ -276,7 +276,7 @@ describe('EscrowDashboard cancel confirmation', () => {
     const user = userEvent.setup();
     renderDashboard(() => reply({ data: {} }));
 
-    await user.click(await screen.findByRole('button', { name: 'Cancel' }));
+    await user.click(await screen.findByRole('button', { name: /^Cancel escrow #7 / }));
     await screen.findByRole('dialog');
 
     const confirmButton = screen.getByRole('button', { name: 'Cancel escrow' });
@@ -298,7 +298,7 @@ describe('EscrowDashboard cancel confirmation', () => {
     const user = userEvent.setup();
     renderDashboard(() => Promise.reject(new TypeError('Failed to fetch')));
 
-    await user.click(await screen.findByRole('button', { name: 'Cancel' }));
+    await user.click(await screen.findByRole('button', { name: /^Cancel escrow #7 / }));
     await screen.findByRole('dialog');
     await user.type(screen.getByLabelText(/type 7 to confirm/i), '7');
     await user.click(screen.getByRole('button', { name: 'Cancel escrow' }));
@@ -312,7 +312,7 @@ describe('EscrowDashboard cancel confirmation', () => {
     const user = userEvent.setup();
     renderDashboard(() => reply({ message: 'Escrow already cancelled' }, 400));
 
-    await user.click(await screen.findByRole('button', { name: 'Cancel' }));
+    await user.click(await screen.findByRole('button', { name: /^Cancel escrow #7 / }));
     await screen.findByRole('dialog');
     await user.type(screen.getByLabelText(/type 7 to confirm/i), '7');
     await user.click(screen.getByRole('button', { name: 'Cancel escrow' }));
@@ -367,5 +367,65 @@ describe('EscrowDashboard address validation', () => {
       expect(body.client).toBe(ACCOUNT);
       expect(body.freelancer).toBe(SECOND_ACCOUNT);
     });
+  });
+});
+
+describe('EscrowDashboard accessibility', () => {
+  const funded = escrow(4, {
+    title: 'Website redesign',
+    totalAmount: 1000,
+    fundedAmount: 1000,
+    releasedAmount: 300,
+    status: 'Funded',
+    milestones: [
+      { index: 0, title: 'Design', amount: 300, released: true },
+      { index: 1, title: 'Build', amount: 700, released: false },
+    ],
+  });
+
+  it('renders hierarchical h2 sections above the h3 cards', async () => {
+    await renderAt('', [funded]);
+
+    expect(screen.getByRole('heading', { level: 2, name: /create escrow/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 2, name: 'Escrows' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 3, name: /new escrow/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 3, name: /#4 website redesign/i })).toBeInTheDocument();
+  });
+
+  it('announces completion of a milestone release', async () => {
+    await renderAt('', [funded]);
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole('button', { name: /release next milestone for escrow #4/i }));
+
+    await waitFor(() =>
+      expect(screen.getByTestId('escrow-live-announcer')).toHaveTextContent(/milestone released/i),
+    );
+  });
+
+  it('announces completion of escrow creation', async () => {
+    await renderAt('', []);
+    const user = userEvent.setup();
+
+    await user.type(screen.getByLabelText('Client address'), 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF');
+    await user.type(screen.getByLabelText('Freelancer address'), 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAC6PV');
+    await user.click(screen.getByRole('button', { name: 'Create escrow' }));
+
+    await waitFor(() => expect(screen.getByTestId('escrow-live-announcer')).toHaveTextContent(/escrow created/i));
+  });
+
+  it('announces an error in the live region when an action fails', async () => {
+    await renderAt('', [funded]);
+    fetchMock.mockImplementation((_url: unknown, init?: RequestInit) =>
+      init?.method === 'POST' ? Promise.reject(new TypeError('Network timeout')) : reply({ data: [funded] }),
+    );
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole('button', { name: /release next milestone for escrow #4/i }));
+
+    await waitFor(() =>
+      expect(screen.getByTestId('escrow-live-announcer')).toHaveTextContent(/error: we could not reach the talenttrust api/i),
+    );
+    expect(screen.getByRole('alert')).toHaveTextContent(/could not reach the TalentTrust API/i);
   });
 });

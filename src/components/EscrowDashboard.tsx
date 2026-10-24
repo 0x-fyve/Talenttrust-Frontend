@@ -22,14 +22,12 @@ import { EscrowToolbar } from "./escrow/EscrowToolbar";
 import { Pagination } from "./escrow/Pagination";
 import { ExportMenu } from "./escrow/ExportMenu";
 import { DisputeDialog } from "./disputes/DisputeDialog";
+import { EscrowCard } from "./escrow/EscrowCard";
 import { useConfirm } from "@/components/ui/ConfirmProvider";
 import { useOptionalContractStatus } from "@/components/ContractStatusProvider";
 import { assertNotPaused } from "@/lib/stellar/status";
 import { normalizeAddress } from "@/lib/stellar/address";
 import { AddressInput, type AddressInputHandle } from "@/components/forms/AddressInput";
-
-const short = (a: string) =>
-  a.length > 14 ? `${a.slice(0, 6)}...${a.slice(-4)}` : a;
 
 export function EscrowDashboard() {
   const confirm = useConfirm();
@@ -50,6 +48,7 @@ export function EscrowDashboard() {
     detail?: string;
   } | null>(null);
   const [busy, setBusy] = useState<number | "new" | null>(null);
+  const [announcement, setAnnouncement] = useState("");
   const loadController = useRef<AbortController | null>(null);
   const [crossFieldError, setCrossFieldError] = useState<string | null>(null);
   const clientRef = useRef<AddressInputHandle>(null);
@@ -133,26 +132,32 @@ export function EscrowDashboard() {
     update(DEFAULT_QUERY);
   };
 
-  const act = async (id: number | "new", fn: () => Promise<unknown>) => {
+  const act = async (
+    id: number | "new",
+    fn: () => Promise<unknown>,
+    messages?: { pending: string; success: string },
+  ) => {
     try {
       assertNotPaused({ status: contractStatus });
     } catch (e) {
       setError({ message: (e as Error).message });
+      setAnnouncement(`Error: ${(e as Error).message}`);
       return;
     }
 
     setBusy(id);
     setError(null);
+    if (messages) setAnnouncement(messages.pending);
     try {
       await fn();
       await load();
+      if (messages) setAnnouncement(messages.success);
     } catch (e) {
       if (e instanceof ApiError && e.kind === "aborted") return;
       const detail = e instanceof ApiError ? e.message : (e as Error).message;
-      setError({
-        message: e instanceof ApiError ? e.userMessage : detail,
-        detail,
-      });
+      const message = e instanceof ApiError ? e.userMessage : detail;
+      setError({ message, detail });
+      setAnnouncement(`Error: ${message}`);
     } finally {
       setBusy(null);
     }
@@ -191,74 +196,90 @@ export function EscrowDashboard() {
           : [`Milestone ${i + 1}`, part];
         return { title: title.trim(), amount: Number(amount) };
       });
-    act('new', () =>
+    act("new", () =>
       api('/api/v1/contracts', {
         method: 'POST',
         body: { title: form.title, client, freelancer, milestones },
       }),
+      { pending: "Creating escrow…", success: "Escrow created" },
     );
   };
 
   return (
     <div className="dash">
-      <form
-        className="card form"
-        onSubmit={create}
-        aria-labelledby="new-escrow"
+      <div
+        aria-live="polite"
+        aria-atomic="true"
+        className="sr-only"
+        data-testid="escrow-live-announcer"
       >
-        <h3 id="new-escrow">New escrow</h3>
-        <div className="field">
-          <label htmlFor="title">Title</label>
-          <input
-            id="title"
-            className="input"
-            value={form.title}
-            onChange={(e) => setForm({ ...form, title: e.target.value })}
-          />
-        </div>
-        <AddressInput
-          ref={clientRef}
-          id="client"
-          label="Client address"
-          value={form.client}
-          onChange={(client) => setForm((current) => ({ ...current, client }))}
-          placeholder="G... Stellar account address"
-          description="56 characters, starting with G. Checksum is verified before submitting."
-        />
-        <AddressInput
-          ref={freelancerRef}
-          id="freelancer"
-          label="Freelancer address"
-          value={form.freelancer}
-          onChange={(freelancer) => {
-            setCrossFieldError(null);
-            setForm((current) => ({ ...current, freelancer }));
-          }}
-          placeholder="G... Stellar account address"
-          description="Must be a different account from the client."
-          error={crossFieldError}
-        />
-        <div className="field">
-          <label htmlFor="milestones">Milestones</label>
-          <input
-            id="milestones"
-            className="input"
-            value={form.milestones}
-            onChange={(e) => setForm({ ...form, milestones: e.target.value })}
-            required
-          />
-          <span className="small muted">Comma separated, as Title: amount</span>
-        </div>
-        <button
-          className="btn btn-primary"
-          type="submit"
-          disabled={busy === "new"}
-        >
-          {busy === "new" ? "Creating..." : "Create escrow"}
-        </button>
-      </form>
+        {announcement}
+      </div>
 
-      <div className="stack" style={{ minWidth: 0 }}>
+      <section aria-labelledby="create-escrow-heading">
+        <h2 id="create-escrow-heading" className="sr-only">
+          Create escrow
+        </h2>
+        <form
+          className="card form"
+          onSubmit={create}
+          aria-labelledby="new-escrow"
+          aria-busy={busy === "new"}
+        >
+          <h3 id="new-escrow">New escrow</h3>
+          <div className="field">
+            <label htmlFor="title">Title</label>
+            <input
+              id="title"
+              className="input"
+              value={form.title}
+              onChange={(e) => setForm({ ...form, title: e.target.value })}
+            />
+          </div>
+          <AddressInput
+            ref={clientRef}
+            id="client"
+            label="Client address"
+            value={form.client}
+            onChange={(client) => setForm((current) => ({ ...current, client }))}
+            placeholder="G... Stellar account address"
+            description="56 characters, starting with G. Checksum is verified before submitting."
+          />
+          <AddressInput
+            ref={freelancerRef}
+            id="freelancer"
+            label="Freelancer address"
+            value={form.freelancer}
+            onChange={(freelancer) => {
+              setCrossFieldError(null);
+              setForm((current) => ({ ...current, freelancer }));
+            }}
+            placeholder="G... Stellar account address"
+            description="Must be a different account from the client."
+            error={crossFieldError}
+          />
+          <div className="field">
+            <label htmlFor="milestones">Milestones</label>
+            <input
+              id="milestones"
+              className="input"
+              value={form.milestones}
+              onChange={(e) => setForm({ ...form, milestones: e.target.value })}
+              required
+            />
+            <span className="small muted">Comma separated, as Title: amount</span>
+          </div>
+          <button
+            className="btn btn-primary"
+            type="submit"
+            disabled={busy === "new"}
+          >
+            {busy === "new" ? "Creating..." : "Create escrow"}
+          </button>
+        </form>
+      </section>
+
+      <section className="stack" style={{ minWidth: 0 }} aria-labelledby="escrow-list">
         <div className="row list-actions">
           <ExportMenu contracts={visible} />
         </div>
@@ -318,163 +339,84 @@ export function EscrowDashboard() {
               No escrows yet. Create the first one.
             </div>
           ))}
-        {result.items.map((c) => {
-          const next = c.milestones.find((m) => !m.released);
-          const active = c.status === "Created" || c.status === "Funded";
-          const pct = c.totalAmount
-            ? Math.round((c.releasedAmount / c.totalAmount) * 100)
-            : 0;
-          return (
-            <article className="card" key={c.id}>
-              <div className="row" style={{ justifyContent: "space-between" }}>
-                <h3 style={{ margin: 0 }}>
-                  #{c.id} {c.title}
-                </h3>
-                <span className={`badge badge-${c.status}`}>{c.status}</span>
-              </div>
-              <p className="small muted" style={{ margin: "6px 0 12px" }}>
-                Client <span className="mono">{short(c.client)}</span> &rarr;
-                Freelancer <span className="mono">{short(c.freelancer)}</span>
-              </p>
-              <div className="progress" aria-label={`${pct}% released`}>
-                <span style={{ width: `${pct}%` }} />
-              </div>
-              <p className="small muted" style={{ margin: "8px 0 0" }}>
-                Released {c.releasedAmount} / {c.totalAmount} {c.token} &middot;
-                In escrow {c.fundedAmount - c.releasedAmount} {c.token}
-              </p>
-              <ul className="milestones">
-                {c.milestones.map((m) => (
-                  <li key={m.index}>
-                    <span className="truncate">
-                      {m.released ? "[x]" : "[ ]"} {m.title}
-                    </span>
-                    <span className="mono">
-                      {m.amount} {c.token}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-              <div className="row">
-                {active && c.fundedAmount < c.totalAmount && (
-                  <button
-                    className="btn btn-primary btn-sm"
-                    disabled={busy === c.id}
-                    onClick={() =>
-                      act(c.id, () =>
-                        api(`/api/v1/contracts/${c.id}/deposit`, {
-                          method: "POST",
-                          body: { amount: c.totalAmount - c.fundedAmount },
-                        }),
-                      )
-                    }
-                  >
-                    Fund {c.totalAmount - c.fundedAmount} {c.token}
-                  </button>
-                )}
-                {active &&
-                  next &&
-                  c.fundedAmount - c.releasedAmount >= next.amount && (
-                    <button
-                      className="btn btn-primary btn-sm"
-                      disabled={busy === c.id}
-                      onClick={() =>
-                        act(c.id, () =>
-                          api(
-                            `/api/v1/contracts/${c.id}/milestones/${next.index}/release`,
-                            { method: "POST" },
-                          ),
-                        )
-                      }
-                    >
-                      Release next
-                    </button>
-                  )}
-                {active && (
-                  <>
-                    <button
-                      className="btn btn-secondary btn-sm"
-                      disabled={busy === c.id}
-                      onClick={(event) => {
-                        disputeTriggerRef.current = event.currentTarget;
-                        setDisputeContract(c);
-                      }}
-                    >
-                      Dispute
-                    </button>
-                    <button
-                      className="btn btn-danger btn-sm"
-                      disabled={busy === c.id}
-                      onClick={async () => {
-                        const held = c.fundedAmount - c.releasedAmount;
-                        const confirmed = await confirm({
-                          title: `Cancel escrow #${c.id}?`,
-                          description: `Refund ${held} ${c.token} to the client and close escrow #${c.id}. This cannot be undone.`,
-                          tone: 'danger',
-                          confirmLabel: 'Cancel escrow',
-                          cancelLabel: 'Keep escrow',
-                          requireText: held > 0 ? String(c.id) : undefined,
-                        });
-                        if (confirmed) {
-                          act(c.id, () => api(`/api/v1/contracts/${c.id}/cancel`, { method: 'POST' }));
-                        }
-                      }}
-                    >
-                      Cancel
-                    </button>
-                  </>
-                )}
-                {c.status === "Disputed" && (
-                  <button
-                    className="btn btn-primary btn-sm"
-                    disabled={busy === c.id}
-                    onClick={() =>
-                      act(c.id, () =>
-                        api(`/api/v1/contracts/${c.id}/resolve`, {
-                          method: "POST",
-                          body: { freelancerBps: 5000 },
-                        }),
-                      )
-                    }
-                  >
-                    Resolve 50/50
-                  </button>
-                )}
-                {c.status === "Completed" && !c.reputationIssued && (
-                  <>
-                    <span className="small muted">Rate freelancer:</span>
-                    {[1, 2, 3, 4, 5].map((r) => (
-                      <button
-                        key={r}
-                        className="btn btn-secondary btn-sm"
-                        disabled={busy === c.id}
-                        onClick={() =>
-                          act(c.id, () =>
-                            api(`/api/v1/contracts/${c.id}/reputation`, {
-                              method: "POST",
-                              body: { rating: r },
-                            }),
-                          )
-                        }
-                      >
-                        {r}
-                      </button>
-                    ))}
-                  </>
-                )}
-                {c.status === "Completed" && c.reputationIssued && (
-                  <span className="small muted">Rated. Thanks!</span>
-                )}
-              </div>
-            </article>
-          );
-        })}
+        {result.items.map((c) => (
+          <EscrowCard
+            key={c.id}
+            contract={c}
+            busy={busy === c.id}
+            onFund={(contract, amount) =>
+              act(
+                contract.id,
+                () =>
+                  api(`/api/v1/contracts/${contract.id}/deposit`, {
+                    method: "POST",
+                    body: { amount },
+                  }),
+                { pending: `Funding escrow #${contract.id}…`, success: `Escrow #${contract.id} funded` },
+              )
+            }
+            onReleaseNext={(contract, milestoneIndex) =>
+              act(
+                contract.id,
+                () =>
+                  api(`/api/v1/contracts/${contract.id}/milestones/${milestoneIndex}/release`, {
+                    method: "POST",
+                  }),
+                { pending: "Releasing milestone…", success: "Milestone released" },
+              )
+            }
+            onDispute={(contract, trigger) => {
+              disputeTriggerRef.current = trigger;
+              setDisputeContract(contract);
+            }}
+            onCancel={async (contract) => {
+              const held = contract.fundedAmount - contract.releasedAmount;
+              const confirmed = await confirm({
+                title: `Cancel escrow #${contract.id}?`,
+                description: `Refund ${held} ${contract.token} to the client and close escrow #${contract.id}. This cannot be undone.`,
+                tone: "danger",
+                confirmLabel: "Cancel escrow",
+                cancelLabel: "Keep escrow",
+                requireText: held > 0 ? String(contract.id) : undefined,
+              });
+              if (confirmed) {
+                act(
+                  contract.id,
+                  () => api(`/api/v1/contracts/${contract.id}/cancel`, { method: "POST" }),
+                  { pending: "Cancelling escrow…", success: "Escrow cancelled" },
+                );
+              }
+            }}
+            onResolve={(contract) =>
+              act(
+                contract.id,
+                () =>
+                  api(`/api/v1/contracts/${contract.id}/resolve`, {
+                    method: "POST",
+                    body: { freelancerBps: 5000 },
+                  }),
+                { pending: "Resolving dispute…", success: "Dispute resolved" },
+              )
+            }
+            onRate={(contract, rating) =>
+              act(
+                contract.id,
+                () =>
+                  api(`/api/v1/contracts/${contract.id}/reputation`, {
+                    method: "POST",
+                    body: { rating },
+                  }),
+                { pending: "Submitting rating…", success: "Rating submitted" },
+              )
+            }
+          />
+        ))}
         <Pagination
           page={result.page}
           pageCount={result.pageCount}
           onPageChange={goToPage}
         />
-      </div>
+      </section>
       {disputeContract && (
         <DisputeDialog
           contract={disputeContract}
