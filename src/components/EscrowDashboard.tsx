@@ -23,12 +23,15 @@ import { Pagination } from "./escrow/Pagination";
 import { ExportMenu } from "./escrow/ExportMenu";
 import { DisputeDialog } from "./disputes/DisputeDialog";
 import { useConfirm } from "@/components/ui/ConfirmProvider";
+import { useOptionalContractStatus } from "@/components/ContractStatusProvider";
+import { assertNotPaused } from "@/lib/stellar/status";
 
 const short = (a: string) =>
   a.length > 14 ? `${a.slice(0, 6)}...${a.slice(-4)}` : a;
 
 export function EscrowDashboard() {
   const confirm = useConfirm();
+  const contractStatus = useOptionalContractStatus()?.status;
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -126,6 +129,13 @@ export function EscrowDashboard() {
   };
 
   const act = async (id: number | "new", fn: () => Promise<unknown>) => {
+    try {
+      assertNotPaused({ status: contractStatus });
+    } catch (e) {
+      setError({ message: (e as Error).message });
+      return;
+    }
+
     setBusy(id);
     setError(null);
     try {

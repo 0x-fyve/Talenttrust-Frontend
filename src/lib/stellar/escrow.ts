@@ -8,6 +8,7 @@ import {
   Address,
 } from '@stellar/stellar-sdk';
 import { getRpcServer, NETWORK_PASSPHRASE } from './rpc';
+import { site } from '../site';
 
 // ── Contract error codes ────────────────────────────────────────────────────
 
@@ -57,9 +58,7 @@ export type OnChainEscrow = {
 
 // ── Contract address helper ─────────────────────────────────────────────────
 
-const CONTRACT_ADDRESS =
-  process.env.NEXT_PUBLIC_ESCROW_CONTRACT_ID ??
-  'CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM';
+const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_ESCROW_CONTRACT_ID ?? site.contractId;
 
 export function getEscrowContract(): Contract {
   return new Contract(CONTRACT_ADDRESS);

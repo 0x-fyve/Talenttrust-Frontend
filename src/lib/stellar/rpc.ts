@@ -7,12 +7,13 @@ import {
   TransactionBuilder,
   xdr,
   rpc as StellarRpc,
+  scValToNative,
 } from '@stellar/stellar-sdk';
+import { site } from '../site';
 
-export const RPC_URL =
-  process.env.NEXT_PUBLIC_SOROBAN_RPC_URL ?? 'https://soroban-testnet.stellar.org';
+export const RPC_URL = process.env.NEXT_PUBLIC_SOROBAN_RPC_URL ?? site.rpcUrl;
 export const NETWORK_PASSPHRASE =
-  process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE ?? Networks.TESTNET;
+  process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE ?? (site.network === 'mainnet' || site.network === 'public' ? Networks.PUBLIC : Networks.TESTNET);
 
 let _server: StellarRpc.Server | null = null;
 
@@ -25,9 +26,7 @@ export function getRpcServer(): StellarRpc.Server {
 
 // ── Legacy simulateRead (used by reputation.ts) ──────────────────────────────
 
-const CONTRACT_ADDRESS =
-  process.env.NEXT_PUBLIC_ESCROW_CONTRACT_ID ??
-  'CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM';
+const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_ESCROW_CONTRACT_ID ?? site.contractId;
 
 /**
  * Run a read-only simulation of a Soroban contract call.
@@ -79,5 +78,13 @@ export async function simulateRead(method: string, args: unknown[]): Promise<xdr
     throw new Error('On-chain read returned no result');
   }
   return sim.result.retval as xdr.ScVal;
+}
+
+export type ScValResult = boolean | number | bigint | string | Uint8Array | null;
+
+/** Simulate a read-only contract call and decode the return value to a JS primitive. */
+export async function simulateContractCall(method: string, args: unknown[] = []): Promise<ScValResult> {
+  const value = scValToNative(await simulateRead(method, args));
+  return (value ?? null) as ScValResult;
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
