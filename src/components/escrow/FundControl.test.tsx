@@ -19,11 +19,15 @@ describe('FundControl', () => {
   it('renders funding bar and presets', () => {
     render(<FundControl contract={contract} onDeposit={async () => {}} />);
     expect(screen.getByRole('progressbar', { name: /funding progress/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Next milestone/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Remaining/ })).toBeInTheDocument();
   });
 
- it('hides Next milestone preset when already covered', () => {
+  it('shows Next milestone preset when not yet covered', () => {
+    render(<FundControl contract={contract} onDeposit={async () => {}} />);
+    expect(screen.queryByRole('button', { name: /Next milestone/ })).toBeInTheDocument();
+  });
+
+  it('hides Next milestone preset when already covered', () => {
     render(
       <FundControl
         contract={{ ...contract, fundedAmount: 700 }}
@@ -33,8 +37,8 @@ describe('FundControl', () => {
     expect(screen.queryByRole('button', { name: /Next milestone/ })).not.toBeInTheDocument();
   });
 
-  it('submits a valid deposit and calls onSuccess', () => {
-    const onDeposit = vi.fn.mockResolved(undefined);
+  it('submits a valid deposit and calls onSuccess', async () => {
+    const onDeposit = vi.fn().mockResolvedValue(undefined);
     const onSuccess = vi.fn();
     render(<FundControl contract={contract} onDeposit={onDeposit} onSuccess={onSuccess} />);
     const user = userEvent.setup();
@@ -45,10 +49,8 @@ describe('FundControl', () => {
     expect(onSuccess).toHaveBeenCalled();
   });
 
-  it('shows inline error on over_funded API 409', () => {
-    const onDeposit = vi
-      .fn()
-      .mockRejected(new Error('409 over_funded'));
+  it('shows inline error on over_funded API 409', async () => {
+    const onDeposit = vi.fn().mockRejectedValue(new Error('409 over_funded'));
     render(<FundControl contract={contract} onDeposit={onDeposit} />);
     const user = userEvent.setup();
     await user.type(screen.getByLabelText(/Deposit amount/i), '100');
@@ -57,10 +59,8 @@ describe('FundControl', () => {
     expect(alert).toHaveTextContent(/exceeds the remaining balance/i);
   });
 
-  it('shows inline error on invalid_status', () => {
-    const onDeposit = vi
-      .fn()
-      .mockRejected(new Error('409 invalid_status'));
+  it('shows inline error on invalid_status', async () => {
+    const onDeposit = vi.fn().mockRejectedValue(new Error('409 invalid_status'));
     render(<FundControl contract={contract} onDeposit={onDeposit} />);
     const user = userEvent.setup();
     await user.type(screen.getByLabelText(/Deposit amount/i), '100');
@@ -69,8 +69,8 @@ describe('FundControl', () => {
     expect(alert).toHaveTextContent(/cannot accept deposits/i);
   });
 
- it('shows inline error on network failure', () => {
-    const onDeposit = vi.fn().mockRejected(new Error('Failed to fetch'));
+  it('shows inline error on network failure', async () => {
+    const onDeposit = vi.fn().mockRejectedValue(new Error('Failed to fetch'));
     render(<FundControl contract={contract} onDeposit={onDeposit} />);
     const user = userEvent.setup();
     await user.type(screen.getByLabelText(/Deposit amount/i), '100');
@@ -79,7 +79,7 @@ describe('FundControl', () => {
     expect(alert).toBeInTheDocument();
   });
 
-  it('shows inline error on invalid input', () => {
+  it('shows inline error on invalid input', async () => {
     const onDeposit = vi.fn();
     render(<FundControl contract={contract} onDeposit={onDeposit} />);
     const user = userEvent.setup();
@@ -90,34 +90,34 @@ describe('FundControl', () => {
     expect(onDeposit).not.toHaveBeenCalled();
   });
 
- it('marks input invalid and links error via aria-describedby', () => {
+  it('marks input invalid and links error via aria-describedby', async () => {
     render(<FundControl contract={contract} onDeposit={async () => {}} />);
     const user = userEvent.setup();
     const input = screen.getByLabelText(/Deposit amount/i);
     await user.type(input, 'abc');
-    await user.click(screen.getButton(/^Deposit$/i));
+    await user.click(screen.getByRole('button', { name: /^Deposit$/i }));
     const alert = await screen.findByRole('alert');
     expect(input).toHaveAttribute('aria-invalid', 'true');
     expect(input.getAttribute('aria-describedby')).toContain(alert.id);
   });
 
-  it('applies Next milestone preset', () => {
+  it('applies Next milestone preset', async () => {
     render(<FundControl contract={contract} onDeposit={async () => {}} />);
     const user = userEvent.setup();
-    await user.click(screen.getButton(/Next milestone/));
+    await user.click(screen.getByRole('button', { name: /Next milestone/ }));
     const input = screen.getByLabelText(/Deposit amount/i) as HTMLInputElement;
     expect(input.value).toBe('100');
   });
 
-  it('applies Remaining preset', () => {
+  it('applies Remaining preset', async () => {
     render(<FundControl contract={contract} onDeposit={async () => {}} />);
     const user = userEvent.setup();
-    await user.click(screen.getButton(/Remaining/));
+    await user.click(screen.getByRole('button', { name: /Remaining/ }));
     const input = screen.getByLabelText(/Deposit amount/i) as HTMLInputElement;
     expect(input.value).toBe('700');
   });
 
-  it('clears input on Escape', () => {
+  it('clears input on Escape', async () => {
     render(<FundControl contract={contract} onDeposit={async () => {}} />);
     const user = userEvent.setup();
     const input = screen.getByLabelText(/Deposit amount/i) as HTMLInputElement;

@@ -25,7 +25,7 @@ describe('validateDeposit', () => {
     { name: 'negative', input: '-1', ok: false, errorMatch: /valid number/ },
     { name: 'zero', input: '0', ok: false, errorMatch: /greater than zero/ },
     { name: 'too many decimals', input: '1.00000001', ok: false, errorMatch: /decimal places/ },
-    { name: 'exactly 7 decimals is ok', input: '1.0000001'.slice(0, -1), ok: true, amount: 1.000000 },
+    { name: 'exactly 7 decimals is ok', input: '1.000000', ok: true, amount: 1.0 },
     { name: 'boundary amount == remaining', input: '700', ok: true, amount: 700 },
     { name: 'remaining + 0.0000001 is error', input: '700.0000001', ok: false, errorMatch: /max 700/ },
     { name: 'way over remaining', input: '701', ok: false, errorMatch: /max 700/ },
@@ -37,7 +37,7 @@ describe('validateDeposit', () => {
       const result = validateDeposit(c.input, c.contract ?? base);
       if (c.ok) {
         expect(result.ok).toBe(true);
-        if (result.ok) expect(result.amount).toBeCloseTo(c.amount!, 1e-9);
+        if (result.ok) expect(result.amount).toBeCloseTo(c.amount!, 9);
       } else {
         expect(result.ok).toBe(false);
         if (!result.ok && c.errorMatch) {
@@ -50,6 +50,12 @@ describe('validateDeposit', () => {
   it('rejects when already fully funded', () => {
     const result = validateDeposit('1', { totalAmount: 100, fundedAmount: 100 });
     expect(result.ok).toBe(false);
+  });
+
+  it('rejects zero-remaining by reporting an error', () => {
+    const result = validateDeposit('1', { totalAmount: 100, fundedAmount: 100 });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toBeTruthy();
   });
 });
 
@@ -69,16 +75,11 @@ describe('nextMilestoneDeposit', () => {
   });
 
   it('returns gap when partially funded', () => {
-    // funded 300, released 0 -> milestone 1 (300) already covered, next is milestone 2 (400)
-    // gap = 400 - (300 - 0) = 100
     expect(nextMilestoneDeposit(base)).toBe(100);
   });
 
   it('returns 0 when next milestone already covered', () => {
     const c = { ...base, fundedAmount: 700 };
-    // funded 700, released 0 -> milestone 1 (300) covered, milestone 2 (400) covered
-    // next unreleased is milestone 2 (400), gap = 400 - 700 < 0 -> 0
-    // but wait - milestone 2 is still unreleased and covered; next unreleased is still milestone 2
     expect(nextMilestoneDeposit(c)).toBe(0);
   });
 
@@ -92,8 +93,6 @@ describe('nextMilestoneDeposit', () => {
         { id: 2, amount: 400, released: false },
       ],
     };
-    // funded 300, released 300 -> available = 0, next unreleased is milestone 2 (400)
-    // gap = 400 - 0 = 400
     expect(nextMilestoneDeposit(c)).toBe(400);
   });
 

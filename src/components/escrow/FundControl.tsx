@@ -36,10 +36,10 @@ function extractApiError(err: unknown): string {
 }
 
 export default function FundControl({ contract, onDeposit, onSuccess }: FundControlProps) {
-  const inputId = useId('fund-amount');
-  const errorId = useId('fund-error');
-  const labelId = useId('fund-label');
-  const barId = useId('fund-bar');
+  const inputId = useId();
+  const errorId = useId();
+  const labelId = useId();
+  const barId = useId();
 
   const [value, setValue] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -59,7 +59,7 @@ export default function FundControl({ contract, onDeposit, onSuccess }: FundCont
     try {
       await onDeposit(amount);
       setValue('');
-      onSuccessA?.();
+      onSuccess?.();
     } catch (err) {
       setError(extractApiError(err));
     } finally {
@@ -109,7 +109,7 @@ export default function FundControl({ contract, onDeposit, onSuccess }: FundCont
         >
           <div
             className="h-full rounded-full bg-blue-600 dark:bg-blue-400"
-            style={{ width: `${percent}%`}}
+            style={{ width: `${percent}%` }}
           />
         </div>
       </div>
@@ -145,15 +145,14 @@ export default function FundControl({ contract, onDeposit, onSuccess }: FundCont
         </div>
 
         <div className="flex flex-wrap gap-2">
-          {nextMilestone > 0 && (
-            <button
-              type="button"
-              onClick={() => applyPreset(nextMilestone)}
-              className="rounded-md border border-gray-300 px-3 py-1 text-xs font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-600 dark:border-gray-600 dark:text-gray-100 dark:focus:ring-blue-400"
-            >
-              Next milestone ({formatAmount(nextMilestone)})
-            </button>
-          )}
+          <button
+            type="button"
+            disabled={nextMilestone <= 0}
+            onClick={() => applyPreset(nextMilestone)}
+            className="rounded-md border border-gray-300 px-3 py-1 text-xs font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:opacity-50 dark:border-gray-600 dark:text-gray-100 dark:focus:ring-blue-400"
+          >
+            Next milestone ({formatAmount(nextMilestone)})
+          </button>
           {remaining > 0 && (
             <button
               type="button"

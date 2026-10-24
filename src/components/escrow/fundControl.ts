@@ -21,7 +21,7 @@ function decimalPlaces(value: string): number {
   return value.length - dot - 1;
 }
 
-export function formatIsueMax(max: number): string {
+export function formatIssueMax(max: number): string {
   return `max ${max.toFixed(MAX_DECIMALS).replace(/\.?0+$/, '')}`;
 }
 
