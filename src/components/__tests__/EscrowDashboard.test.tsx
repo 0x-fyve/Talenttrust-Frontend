@@ -322,3 +322,50 @@ describe('EscrowDashboard cancel confirmation', () => {
     expect(alert).toHaveAttribute('title', 'Escrow already cancelled');
   });
 });
+
+describe('EscrowDashboard address validation', () => {
+  const ACCOUNT = 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF';
+  const SECOND_ACCOUNT = 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAC6PV';
+  const posts = () => fetchMock.mock.calls.filter(([, init]) => (init as RequestInit | undefined)?.method === 'POST');
+
+  it('blocks creation when client and freelancer are the same address', async () => {
+    await renderAt('', []);
+    const user = userEvent.setup();
+
+    await user.type(screen.getByLabelText('Client address'), ACCOUNT);
+    await user.type(screen.getByLabelText('Freelancer address'), ACCOUNT);
+    await user.click(screen.getByRole('button', { name: 'Create escrow' }));
+
+    expect(await screen.findByText('Client and freelancer must be different addresses.')).toBeInTheDocument();
+    expect(posts()).toHaveLength(0);
+  });
+
+  it('does not call the API when the freelancer address is invalid', async () => {
+    await renderAt('', []);
+    const user = userEvent.setup();
+
+    await user.type(screen.getByLabelText('Client address'), ACCOUNT);
+    await user.type(screen.getByLabelText('Freelancer address'), ACCOUNT.slice(0, -1));
+    await user.click(screen.getByRole('button', { name: 'Create escrow' }));
+
+    expect(await screen.findByText('Stellar addresses must be 56 characters long.')).toBeInTheDocument();
+    expect(posts()).toHaveLength(0);
+  });
+
+  it('submits normalised addresses for valid input', async () => {
+    await renderAt('', []);
+    const user = userEvent.setup();
+
+    await user.type(screen.getByLabelText('Client address'), ACCOUNT.toLowerCase());
+    await user.type(screen.getByLabelText('Freelancer address'), SECOND_ACCOUNT);
+    await user.click(screen.getByRole('button', { name: 'Create escrow' }));
+
+    await waitFor(() => {
+      const post = posts()[0];
+      expect(post).toBeDefined();
+      const body = JSON.parse((post?.[1] as RequestInit).body as string);
+      expect(body.client).toBe(ACCOUNT);
+      expect(body.freelancer).toBe(SECOND_ACCOUNT);
+    });
+  });
+});

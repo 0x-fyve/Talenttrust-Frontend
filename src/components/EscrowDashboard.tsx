@@ -25,6 +25,8 @@ import { DisputeDialog } from "./disputes/DisputeDialog";
 import { useConfirm } from "@/components/ui/ConfirmProvider";
 import { useOptionalContractStatus } from "@/components/ContractStatusProvider";
 import { assertNotPaused } from "@/lib/stellar/status";
+import { normalizeAddress } from "@/lib/stellar/address";
+import { AddressInput, type AddressInputHandle } from "@/components/forms/AddressInput";
 
 const short = (a: string) =>
   a.length > 14 ? `${a.slice(0, 6)}...${a.slice(-4)}` : a;
@@ -49,11 +51,14 @@ export function EscrowDashboard() {
   } | null>(null);
   const [busy, setBusy] = useState<number | "new" | null>(null);
   const loadController = useRef<AbortController | null>(null);
+  const [crossFieldError, setCrossFieldError] = useState<string | null>(null);
+  const clientRef = useRef<AddressInputHandle>(null);
+  const freelancerRef = useRef<AddressInputHandle>(null);
   const [form, setForm] = useState({
-    title: "Website redesign",
-    client: "GCLIENT" + "X".repeat(49),
-    freelancer: "GFREELANCER" + "Y".repeat(45),
-    milestones: "Design: 300, Build: 700",
+    title: 'Website redesign',
+    client: '',
+    freelancer: '',
+    milestones: 'Design: 300, Build: 700',
   });
 
   // Status is filtered by the API, the rest is done client-side
@@ -155,6 +160,27 @@ export function EscrowDashboard() {
 
   const create = (e: FormEvent) => {
     e.preventDefault();
+    setCrossFieldError(null);
+
+    const clientOk = clientRef.current?.validate() ?? false;
+    const freelancerOk = freelancerRef.current?.validate() ?? false;
+    if (!clientOk) {
+      clientRef.current?.focus();
+      return;
+    }
+    if (!freelancerOk) {
+      freelancerRef.current?.focus();
+      return;
+    }
+
+    const client = normalizeAddress(form.client);
+    const freelancer = normalizeAddress(form.freelancer);
+    if (client === freelancer) {
+      setCrossFieldError('Client and freelancer must be different addresses.');
+      freelancerRef.current?.focus();
+      return;
+    }
+
     const milestones = form.milestones
       .split(",")
       .map((part) => part.trim())
@@ -165,15 +191,10 @@ export function EscrowDashboard() {
           : [`Milestone ${i + 1}`, part];
         return { title: title.trim(), amount: Number(amount) };
       });
-    act("new", () =>
-      api("/api/v1/contracts", {
-        method: "POST",
-        body: {
-          title: form.title,
-          client: form.client,
-          freelancer: form.freelancer,
-          milestones,
-        },
+    act('new', () =>
+      api('/api/v1/contracts', {
+        method: 'POST',
+        body: { title: form.title, client, freelancer, milestones },
       }),
     );
   };
@@ -195,26 +216,28 @@ export function EscrowDashboard() {
             onChange={(e) => setForm({ ...form, title: e.target.value })}
           />
         </div>
-        <div className="field">
-          <label htmlFor="client">Client address</label>
-          <input
-            id="client"
-            className="input mono"
-            value={form.client}
-            onChange={(e) => setForm({ ...form, client: e.target.value })}
-            required
-          />
-        </div>
-        <div className="field">
-          <label htmlFor="freelancer">Freelancer address</label>
-          <input
-            id="freelancer"
-            className="input mono"
-            value={form.freelancer}
-            onChange={(e) => setForm({ ...form, freelancer: e.target.value })}
-            required
-          />
-        </div>
+        <AddressInput
+          ref={clientRef}
+          id="client"
+          label="Client address"
+          value={form.client}
+          onChange={(client) => setForm((current) => ({ ...current, client }))}
+          placeholder="G... Stellar account address"
+          description="56 characters, starting with G. Checksum is verified before submitting."
+        />
+        <AddressInput
+          ref={freelancerRef}
+          id="freelancer"
+          label="Freelancer address"
+          value={form.freelancer}
+          onChange={(freelancer) => {
+            setCrossFieldError(null);
+            setForm((current) => ({ ...current, freelancer }));
+          }}
+          placeholder="G... Stellar account address"
+          description="Must be a different account from the client."
+          error={crossFieldError}
+        />
         <div className="field">
           <label htmlFor="milestones">Milestones</label>
           <input
