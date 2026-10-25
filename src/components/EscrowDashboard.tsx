@@ -37,6 +37,7 @@ import { normalizeAddress } from "@/lib/stellar/address";
 import { AddressInput, type AddressInputHandle } from "@/components/forms/AddressInput";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { WatchToggle } from "@/components/WatchToggle";
+import { OnchainCreateForm } from "./escrow/OnchainCreateForm";
 import {
   MilestoneBuilder,
   newMilestone,
@@ -149,6 +150,8 @@ export function EscrowDashboard() {
   ]);
   const [milestoneErrors, setMilestoneErrors] = useState<MilestoneValidation | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
+  // Create through the demo API, or sign create_contract on testnet with Freighter.
+  const [createMode, setCreateMode] = useState<"demo" | "onchain">("demo");
 
   // Status is filtered by the API, the rest is done client-side
   const load = useCallback(async () => {
@@ -507,6 +510,35 @@ export function EscrowDashboard() {
         <h2 id="create-escrow-heading" className="sr-only">
           Create escrow
         </h2>
+        <fieldset className="create-mode">
+          <legend>Mode</legend>
+          <label>
+            <input
+              type="radio"
+              name="create-mode"
+              value="demo"
+              checked={createMode === "demo"}
+              onChange={() => setCreateMode("demo")}
+            />
+            Demo API
+          </label>
+          <label>
+            <input
+              type="radio"
+              name="create-mode"
+              value="onchain"
+              checked={createMode === "onchain"}
+              onChange={() => setCreateMode("onchain")}
+            />
+            On-chain (testnet)
+          </label>
+        </fieldset>
+        {createMode === "onchain" ? (
+          <div className="card form">
+            <h3 id="new-escrow">New escrow</h3>
+            <OnchainCreateForm />
+          </div>
+        ) : (
         <form
           ref={formRef}
           className="card form"
@@ -562,6 +594,7 @@ export function EscrowDashboard() {
             {busy === "new" ? "Creating..." : "Create escrow"}
           </button>
         </form>
+        )}
       </section>
 
       <section className="stack" style={{ minWidth: 0 }} aria-labelledby="escrow-list">

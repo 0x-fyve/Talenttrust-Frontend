@@ -1118,3 +1118,8 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
 .milestone-row { display: grid; gap: 8px; padding: 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); min-width: 0; }
 .milestone-row-actions { gap: 6px; }
 .milestone-total { margin: 0; font-weight: 600; }
+
+/* Create mode toggle (demo API vs on-chain) */
+.create-mode { border: 0; padding: 0; margin: 0 0 10px; display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; }
+.create-mode > legend { font-weight: 600; font-size: 0.9rem; padding: 0; margin-bottom: 4px; }
+.create-mode label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
