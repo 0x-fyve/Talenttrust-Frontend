@@ -466,7 +466,10 @@ export function EscrowDashboard() {
         </div>
         {error && (
           <div className="alert alert-error" role="alert" title={error.detail}>
-            {error.message}
+            {error.message}{" "}
+            <Link href="/status" className="alert-link">
+              See system status
+            </Link>
           </div>
         )}
         <h2
