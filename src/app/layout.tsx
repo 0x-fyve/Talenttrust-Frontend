@@ -9,6 +9,8 @@ import { ConfirmProvider } from '@/components/ui/ConfirmProvider';
 import { NotificationsProvider } from '@/components/NotificationsProvider';
 import { ToastProvider } from '@/components/toast/ToastProvider';
 import { SwrProvider } from '@/lib/swr';
+import ServiceWorkerRegister from '@/components/ServiceWorkerRegister';
+import OfflineIndicator from '@/components/OfflineIndicator';
 import { site, explorerUrl, apiDocsUrl } from '@/lib/site';
 
 export const metadata: Metadata = {
@@ -56,6 +58,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     Skip to content
                   </a>
                   <Header />
+                  <OfflineIndicator />
                   <PausedBanner />
                   <main id="main">{children}</main>
                   <footer className="footer">
@@ -81,6 +84,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                       </div>
                     </div>
                   </footer>
+                  <ServiceWorkerRegister />
                 </NotificationsProvider>
               </ContractStatusProvider>
             </ConfirmProvider>
