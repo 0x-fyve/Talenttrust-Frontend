@@ -12,6 +12,8 @@ export interface EscrowCardProps {
   headerActions?: ReactNode;
   /** Extra controls rendered after the built-in action buttons. */
   extraActions?: ReactNode;
+  /** Replaces the built-in rating buttons / "Rated" note on completed escrows when provided. */
+  ratingSlot?: ReactNode;
   onFund?: (contract: EscrowContract, amount: number) => void;
   onReleaseNext?: (contract: EscrowContract, milestoneIndex: number) => void;
   onDispute?: (contract: EscrowContract, trigger: HTMLButtonElement) => void;
@@ -25,6 +27,7 @@ export function EscrowCard({
   busy = false,
   headerActions,
   extraActions,
+  ratingSlot,
   onFund,
   onReleaseNext,
   onDispute,
@@ -152,7 +155,8 @@ export function EscrowCard({
             Resolve 50/50
           </button>
         )}
-        {contract.status === 'Completed' && !contract.reputationIssued && (
+        {contract.status === 'Completed' && ratingSlot !== undefined && ratingSlot}
+        {contract.status === 'Completed' && ratingSlot === undefined && !contract.reputationIssued && (
           <>
             <span className="small muted">Rate freelancer:</span>
             {[1, 2, 3, 4, 5].map((r) => (
@@ -170,7 +174,7 @@ export function EscrowCard({
             ))}
           </>
         )}
-        {contract.status === 'Completed' && contract.reputationIssued && (
+        {contract.status === 'Completed' && ratingSlot === undefined && contract.reputationIssued && (
           <span className="small muted">Rated. Thanks!</span>
         )}
         {extraActions}

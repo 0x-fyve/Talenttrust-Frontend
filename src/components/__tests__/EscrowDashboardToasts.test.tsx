@@ -117,13 +117,73 @@ describe('EscrowDashboard toasts', () => {
     expect(await screen.findByText('Escrow #7 resolved')).toBeInTheDocument();
   });
 
-  it('shows a success toast after rating and sends the chosen rating', async () => {
-    await renderWith([contract({ status: 'Completed', fundedAmount: 1000, releasedAmount: 1000 })]);
+  it('rates with the star widget, sends the chosen rating and shows the new average', async () => {
+    let list = [contract({ status: 'Completed', fundedAmount: 1000, releasedAmount: 1000, freelancer: 'GFREELANCERYYYY' })];
+    fetchMock.mockImplementation((_url: unknown, init?: RequestInit) => {
+      if (init?.method === 'POST') {
+        list = [{ ...list[0], reputationIssued: true }];
+        return reply({ data: { address: 'GFREELANCERYYYY', completedContracts: 3, totalRating: 13, averageRating: 4.5 } });
+      }
+      return reply({ data: list });
+    });
+    render(
+      <ToastProvider>
+        <EscrowDashboard />
+      </ToastProvider>,
+    );
     const user = userEvent.setup();
-    await user.click(await screen.findByRole('button', { name: /rate freelancer 4 out of 5 stars for escrow #7/i }));
+    await user.click(await screen.findByRole('radio', { name: '4 stars – Very good' }));
+    expect(screen.getByRole('button', { name: 'Submit rating' })).toBeEnabled();
+    await user.click(screen.getByRole('button', { name: 'Submit rating' }));
 
     expect(await screen.findByText('Rating submitted for escrow #7')).toBeInTheDocument();
     const post = fetchMock.mock.calls.find(([, init]) => (init as RequestInit | undefined)?.method === 'POST');
     expect(JSON.parse((post?.[1] as RequestInit).body as string)).toEqual({ rating: 4 });
+    const summary = await screen.findByText((content, el) => el?.tagName === 'P' && content.startsWith('New average:'));
+    expect(summary.textContent).toContain('4.5');
+    expect(summary.textContent).toContain('across 3');
+    expect(screen.getByRole('link', { name: 'View reputation' }).getAttribute('href')).toContain('/reputation?address=GFREELANCERYYYY');
+  });
+
+  it('keeps submit disabled until a star is chosen', async () => {
+    await renderWith([contract({ status: 'Completed', fundedAmount: 1000, releasedAmount: 1000 })]);
+
+    expect(await screen.findByRole('button', { name: 'Submit rating' })).toBeDisabled();
+    expect(fetchMock.mock.calls.filter(([, init]) => (init as RequestInit | undefined)?.method === 'POST')).toHaveLength(0);
+  });
+
+  it('shows a 409 rating error inline and refreshes the list without a success toast', async () => {
+    let list = [contract({ status: 'Completed', fundedAmount: 1000, releasedAmount: 1000 })];
+    fetchMock.mockImplementation((_url: unknown, init?: RequestInit) => {
+      if (init?.method === 'POST') {
+        list = [{ ...list[0], reputationIssued: true }];
+        return reply({ error: 'already_rated', message: 'already_rated' }, 409);
+      }
+      return reply({ data: list });
+    });
+    render(
+      <ToastProvider>
+        <EscrowDashboard />
+      </ToastProvider>,
+    );
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('radio', { name: '5 stars – Excellent' }));
+    await user.click(screen.getByRole('button', { name: 'Submit rating' }));
+
+    expect(await screen.findByText('already_rated')).toBeInTheDocument();
+    expect(await screen.findByText('Rated. Thanks!')).toBeInTheDocument();
+    expect(screen.queryByText(/Rating submitted/)).not.toBeInTheDocument();
+  });
+
+  it('shows a network error on rating inline', async () => {
+    await renderWith([contract({ status: 'Completed', fundedAmount: 1000, releasedAmount: 1000 })], () =>
+      Promise.reject(new TypeError('Failed to fetch')),
+    );
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('radio', { name: '1 star – Poor' }));
+    await user.click(screen.getByRole('button', { name: 'Submit rating' }));
+
+    expect(await screen.findByText('Failed to fetch')).toBeInTheDocument();
+    expect(screen.queryByText(/Rating submitted/)).not.toBeInTheDocument();
   });
 });

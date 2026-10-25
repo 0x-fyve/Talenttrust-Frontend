@@ -220,6 +220,15 @@ export async function api<T>(path: string, init: ApiOptions = {}): Promise<T> {
   }
 }
 
+/** Unwrap the Reputation that the rate endpoint returns, if present. */
+export function unwrapReputation(payload: unknown): Reputation | null {
+  if (!payload || typeof payload !== 'object') return null;
+  const obj = payload as { data?: Reputation; address?: string };
+  if (obj.data && typeof obj.data.address === 'string') return obj.data;
+  if (typeof obj.address === 'string') return payload as Reputation;
+  return null;
+}
+
 /** Unwrap the EscrowContract that mutation endpoints return, if present. */
 export function unwrapContract(payload: unknown): EscrowContract | null {
   if (!payload || typeof payload !== 'object') return null;

@@ -10,7 +10,8 @@ import {
 } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { api, ApiError, EscrowContract, unwrapContract } from "@/lib/api";
+import { api, ApiError, EscrowContract, Reputation, unwrapContract, unwrapReputation } from "@/lib/api";
+import { StarRating } from "@/components/reputation/StarRating";
 import {
   applyQuery,
   ContractQuery,
@@ -84,6 +85,8 @@ export function EscrowDashboard() {
   } | null>(null);
   const [busy, setBusy] = useState<number | "new" | null>(null);
   const [announcement, setAnnouncement] = useState("");
+  const [rated, setRated] = useState<Record<number, Reputation>>({});
+  const [ratingErrors, setRatingErrors] = useState<Record<number, string>>({});
   const loadController = useRef<AbortController | null>(null);
   const [crossFieldError, setCrossFieldError] = useState<string | null>(null);
   const clientRef = useRef<AddressInputHandle>(null);
@@ -208,6 +211,43 @@ export function EscrowDashboard() {
       setError({ message, detail });
       setAnnouncement(`Error: ${message}`);
       toast.error(detail);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  // Rating has its own flow: the endpoint returns a Reputation (not a contract)
+  // and errors are shown inline on the card so they survive a list refresh.
+  const rate = async (c: EscrowContract, rating: number) => {
+    try {
+      assertNotPaused({ status: contractStatus });
+    } catch (e) {
+      setRatingErrors((prev) => ({ ...prev, [c.id]: (e as Error).message }));
+      return;
+    }
+    setBusy(c.id);
+    setRatingErrors((prev) => {
+      const next = { ...prev };
+      delete next[c.id];
+      return next;
+    });
+    setAnnouncement("Submitting rating…");
+    try {
+      const reputation = await api<Reputation>(`/api/v1/contracts/${c.id}/reputation`, {
+        method: "POST",
+        body: { rating },
+      }).then(unwrapReputation);
+      if (reputation) setRated((prev) => ({ ...prev, [c.id]: reputation }));
+      await load();
+      setAnnouncement("Rating submitted");
+      toast.success(`Rating submitted for escrow #${c.id}`);
+    } catch (e) {
+      if (e instanceof ApiError && e.kind === "aborted") return;
+      // Show the API detail (e.g. "already rated") inline on the card.
+      const message = (e as Error).message;
+      setRatingErrors((prev) => ({ ...prev, [c.id]: message }));
+      setAnnouncement(`Error: ${message}`);
+      await load();
     } finally {
       setBusy(null);
     }
@@ -481,17 +521,26 @@ export function EscrowDashboard() {
                 () => toast.success(`Escrow #${contract.id} resolved`),
               )
             }
-            onRate={(contract, rating) =>
-              act(
-                contract.id,
-                () =>
-                  api(`/api/v1/contracts/${contract.id}/reputation`, {
-                    method: "POST",
-                    body: { rating },
-                  }),
-                { pending: "Submitting rating…", success: "Rating submitted" },
-                () => toast.success(`Rating submitted for escrow #${contract.id}`),
-              )
+            ratingSlot={
+              c.status === "Completed" ? (
+                <>
+                  {!c.reputationIssued && !rated[c.id] && (
+                    <StarRating onSubmit={(rating) => rate(c, rating)} disabled={busy === c.id} />
+                  )}
+                  {rated[c.id] && (
+                    <p className="small rate-note">
+                      New average: {rated[c.id].averageRating} / 5 across {rated[c.id].completedContracts}{" "}
+                      <Link href={`/reputation?address=${encodeURIComponent(c.freelancer)}`}>View reputation</Link>
+                    </p>
+                  )}
+                  {c.reputationIssued && !rated[c.id] && <span className="small muted">Rated. Thanks!</span>}
+                  {ratingErrors[c.id] && (
+                    <div className="alert alert-error small" role="alert" style={{ flex: "1 1 100%", margin: 0 }}>
+                      {ratingErrors[c.id]}
+                    </div>
+                  )}
+                </>
+              ) : undefined
             }
           />
         ))}
