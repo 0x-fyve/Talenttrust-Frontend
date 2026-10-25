@@ -20,6 +20,9 @@ export interface EscrowContract {
   status: 'Created' | 'Funded' | 'Completed' | 'Disputed' | 'Resolved' | 'Cancelled';
   reputationIssued: boolean;
   dispute?: Dispute | null;
+  /** Some API versions expose the dispute timestamp at the top level. */
+  disputeOpenedAt?: string;
+  disputedAt?: string;
   createdAt?: string;
   updatedAt?: string;
 }

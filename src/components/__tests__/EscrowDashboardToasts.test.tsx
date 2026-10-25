@@ -6,6 +6,9 @@ import { ToastProvider } from '@/components/toast/ToastProvider';
 import { EscrowDashboard } from '@/components/EscrowDashboard';
 import { escrow } from '@/test/fixtures';
 
+// The connected wallet is the arbiter, so disputed escrows show the resolution form.
+vi.mock('@/lib/stellar/useIsArbiter', () => ({ useIsArbiter: () => true }));
+
 vi.mock('next/navigation', () => ({
   usePathname: () => '/contracts',
   useRouter: () => ({ replace: vi.fn() }),
@@ -112,7 +115,8 @@ describe('EscrowDashboard toasts', () => {
   it('shows a success toast after resolving a dispute', async () => {
     await renderWith([contract({ status: 'Disputed', fundedAmount: 1000 })]);
     const user = userEvent.setup();
-    await user.click(await screen.findByRole('button', { name: /resolve 50\/50 for escrow #7/i }));
+    await user.click(await screen.findByRole('button', { name: 'Review resolution' }));
+    await user.click(screen.getByRole('button', { name: 'Confirm resolution' }));
 
     expect(await screen.findByText('Escrow #7 resolved')).toBeInTheDocument();
   });

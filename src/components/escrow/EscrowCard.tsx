@@ -20,6 +20,8 @@ export interface EscrowCardProps {
   extraActions?: ReactNode;
   /** Replaces the built-in rating buttons / "Rated" note on completed escrows when provided. */
   ratingSlot?: ReactNode;
+  /** Replaces the built-in "Resolve 50/50" button on disputed escrows when provided. */
+  resolveSlot?: ReactNode;
   onFund?: (contract: EscrowContract, amount: number) => void;
   onReleaseNext?: (contract: EscrowContract, milestoneIndex: number) => void;
   onDispute?: (contract: EscrowContract, trigger: HTMLButtonElement) => void;
@@ -37,6 +39,7 @@ export function EscrowCard({
   headerActions,
   extraActions,
   ratingSlot,
+  resolveSlot,
   onFund,
   onReleaseNext,
   onDispute,
@@ -166,7 +169,7 @@ export function EscrowCard({
             </button>
           </>
         )}
-        {contract.status === 'Disputed' && (
+        {contract.status === 'Disputed' && resolveSlot === undefined && (
           <button
             type="button"
             className="btn btn-primary btn-sm"
@@ -202,6 +205,7 @@ export function EscrowCard({
         )}
         {extraActions}
       </div>
+      {contract.status === 'Disputed' && resolveSlot}
     </article>
   );
 }

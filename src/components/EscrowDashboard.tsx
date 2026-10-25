@@ -15,6 +15,8 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { api, ApiError, EscrowContract, Reputation, unwrapContract, unwrapReputation } from "@/lib/api";
 import { StarRating } from "@/components/reputation/StarRating";
+import { ResolveDisputeForm } from "@/components/disputes/ResolveDisputeForm";
+import { useIsArbiter } from "@/lib/stellar/useIsArbiter";
 import {
   applyQuery,
   ContractQuery,
@@ -70,6 +72,7 @@ function EscrowCardSkeleton() {
 export function EscrowDashboard() {
   const confirm = useConfirm();
   const toast = useOptionalToast();
+  const isArbiter = useIsArbiter();
   const contractStatus = useOptionalContractStatus()?.status;
   const router = useRouter();
   const pathname = usePathname();
@@ -289,6 +292,34 @@ export function EscrowDashboard() {
         setPending(contractId, false);
       }
     });
+  };
+
+  // Arbiter-only resolution with a chosen split. Errors are re-thrown so the
+  // form can show them next to its controls.
+  const resolveDispute = async (c: EscrowContract, freelancerBps: number) => {
+    assertNotPaused({ status: contractStatus });
+    setBusy(c.id);
+    setAnnouncement("Resolving dispute…");
+    try {
+      const response = await api(`/api/v1/contracts/${c.id}/resolve`, {
+        method: "POST",
+        body: { freelancerBps },
+      });
+      const updated = unwrapContract(response);
+      if (updated) {
+        setContracts((prev) => (prev ? prev.map((x) => (x.id === updated.id ? updated : x)) : [updated]));
+      } else {
+        await load();
+      }
+      setAnnouncement("Dispute resolved");
+      toast.success(`Escrow #${c.id} resolved`);
+    } catch (e) {
+      const message = e instanceof ApiError ? e.userMessage : (e as Error).message;
+      setAnnouncement(`Error: ${message}`);
+      throw new Error(message);
+    } finally {
+      setBusy(null);
+    }
   };
 
   // Rating has its own flow: the endpoint returns a Reputation (not a contract)
@@ -604,6 +635,21 @@ export function EscrowDashboard() {
                 () => toast.success(`Escrow #${contract.id} resolved`),
               )
             }
+            resolveSlot={
+              c.status === "Disputed" ? (
+                isArbiter === true ? (
+                  <ResolveDisputeForm
+                    id={c.id}
+                    held={c.fundedAmount - c.releasedAmount}
+                    token={c.token}
+                    busy={busy === c.id}
+                    onResolve={(freelancerBps) => resolveDispute(c, freelancerBps)}
+                  />
+                ) : (
+                  <DisputeWaiting contract={c} checking={isArbiter === null} />
+                )
+              ) : undefined
+            }
             ratingSlot={
               c.status === "Completed" ? (
                 <>
@@ -646,5 +692,20 @@ export function EscrowDashboard() {
         />
       )}
     </div>
+  );
+}
+
+function DisputeWaiting({ contract, checking }: { contract: EscrowContract; checking: boolean }) {
+  const openedAt = contract.dispute?.openedAt ?? contract.disputeOpenedAt ?? contract.disputedAt;
+  const valid = openedAt && !Number.isNaN(Date.parse(openedAt));
+  return (
+    <p className="small muted resolve-waiting">
+      <span className="badge">{checking ? "Checking arbiter access" : "Awaiting arbiter decision"}</span>
+      {valid && (
+        <time dateTime={openedAt} aria-label="Dispute opened">
+          Opened {new Date(openedAt).toLocaleString()}
+        </time>
+      )}
+    </p>
   );
 }
