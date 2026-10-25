@@ -9,6 +9,7 @@ import {
   useState,
 } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { api, ApiError, EscrowContract } from "@/lib/api";
 import {
   applyQuery,
@@ -374,6 +375,13 @@ export function EscrowDashboard() {
             contract={c}
             busy={busy === c.id}
             headerActions={<WatchToggle contract={c} />}
+            extraActions={
+              (c.status === "Completed" || c.status === "Resolved" || c.status === "Cancelled") && (
+                <Link href={`/contracts/${c.id}/statement`} className="btn btn-secondary btn-sm">
+                  Statement
+                </Link>
+              )
+            }
             onFund={(contract, amount) =>
               act(
                 contract.id,

@@ -10,6 +10,8 @@ export interface EscrowCardProps {
   busy?: boolean;
   /** Extra controls rendered next to the status badge (e.g. a watch toggle). */
   headerActions?: ReactNode;
+  /** Extra controls rendered after the built-in action buttons. */
+  extraActions?: ReactNode;
   onFund?: (contract: EscrowContract, amount: number) => void;
   onReleaseNext?: (contract: EscrowContract, milestoneIndex: number) => void;
   onDispute?: (contract: EscrowContract, trigger: HTMLButtonElement) => void;
@@ -22,6 +24,7 @@ export function EscrowCard({
   contract,
   busy = false,
   headerActions,
+  extraActions,
   onFund,
   onReleaseNext,
   onDispute,
@@ -170,6 +173,7 @@ export function EscrowCard({
         {contract.status === 'Completed' && contract.reputationIssued && (
           <span className="small muted">Rated. Thanks!</span>
         )}
+        {extraActions}
       </div>
     </article>
   );
