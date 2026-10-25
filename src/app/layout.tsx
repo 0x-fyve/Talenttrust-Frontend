@@ -6,6 +6,7 @@ import { ContractStatusProvider } from '@/components/ContractStatusProvider';
 import { PausedBanner } from '@/components/PausedBanner';
 import { ContractStatusPill } from '@/components/ContractStatusPill';
 import { ConfirmProvider } from '@/components/ui/ConfirmProvider';
+import { NotificationsProvider } from '@/components/NotificationsProvider';
 import { site, explorerUrl, apiDocsUrl } from '@/lib/site';
 
 export const metadata: Metadata = {
@@ -46,34 +47,36 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <ConfirmProvider>
           <ContractStatusProvider>
-            <a href="#main" className="skip">
-              Skip to content
-            </a>
-            <Header />
-            <PausedBanner />
-            <main id="main">{children}</main>
-            <footer className="footer">
-              <div className="container footer-inner">
-                <div className="footer-brand">
-                  <span>
-                    <strong style={{ color: 'var(--text)' }}>TalentTrust</strong> &middot; {site.tagline}
-                  </span>
-                  <ContractStatusPill />
+            <NotificationsProvider>
+              <a href="#main" className="skip">
+                Skip to content
+              </a>
+              <Header />
+              <PausedBanner />
+              <main id="main">{children}</main>
+              <footer className="footer">
+                <div className="container footer-inner">
+                  <div className="footer-brand">
+                    <span>
+                      <strong style={{ color: 'var(--text)' }}>TalentTrust</strong> &middot; {site.tagline}
+                    </span>
+                    <ContractStatusPill />
+                  </div>
+                  <div className="footer-links">
+                    <Link href="/docs">Docs</Link>
+                    <a href={apiDocsUrl} target="_blank" rel="noreferrer">
+                      API
+                    </a>
+                    <a href={explorerUrl} target="_blank" rel="noreferrer">
+                      Contract
+                    </a>
+                    <a href={site.github} target="_blank" rel="noreferrer">
+                      GitHub
+                    </a>
+                  </div>
                 </div>
-                <div className="footer-links">
-                  <Link href="/docs">Docs</Link>
-                  <a href={apiDocsUrl} target="_blank" rel="noreferrer">
-                    API
-                  </a>
-                  <a href={explorerUrl} target="_blank" rel="noreferrer">
-                    Contract
-                  </a>
-                  <a href={site.github} target="_blank" rel="noreferrer">
-                    GitHub
-                  </a>
-                </div>
-              </div>
-            </footer>
+              </footer>
+            </NotificationsProvider>
           </ContractStatusProvider>
         </ConfirmProvider>
       </body>

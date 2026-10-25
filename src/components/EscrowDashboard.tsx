@@ -29,6 +29,7 @@ import { assertNotPaused } from "@/lib/stellar/status";
 import { normalizeAddress } from "@/lib/stellar/address";
 import { AddressInput, type AddressInputHandle } from "@/components/forms/AddressInput";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { WatchToggle } from "@/components/WatchToggle";
 
 function EscrowCardSkeleton() {
   return (
@@ -372,6 +373,7 @@ export function EscrowDashboard() {
             key={c.id}
             contract={c}
             busy={busy === c.id}
+            headerActions={<WatchToggle contract={c} />}
             onFund={(contract, amount) =>
               act(
                 contract.id,

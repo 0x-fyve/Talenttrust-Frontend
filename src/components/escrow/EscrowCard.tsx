@@ -1,5 +1,6 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import type { EscrowContract } from '@/lib/api';
 
 const short = (a: string) => (a.length > 14 ? `${a.slice(0, 6)}...${a.slice(-4)}` : a);
@@ -7,6 +8,8 @@ const short = (a: string) => (a.length > 14 ? `${a.slice(0, 6)}...${a.slice(-4)}
 export interface EscrowCardProps {
   contract: EscrowContract;
   busy?: boolean;
+  /** Extra controls rendered next to the status badge (e.g. a watch toggle). */
+  headerActions?: ReactNode;
   onFund?: (contract: EscrowContract, amount: number) => void;
   onReleaseNext?: (contract: EscrowContract, milestoneIndex: number) => void;
   onDispute?: (contract: EscrowContract, trigger: HTMLButtonElement) => void;
@@ -18,6 +21,7 @@ export interface EscrowCardProps {
 export function EscrowCard({
   contract,
   busy = false,
+  headerActions,
   onFund,
   onReleaseNext,
   onDispute,
@@ -39,7 +43,10 @@ export function EscrowCard({
         <h3 id={headingId} style={{ margin: 0 }}>
           #{contract.id} {contract.title}
         </h3>
-        <span className={`badge badge-${contract.status}`}>{contract.status}</span>
+        <div className="row" style={{ gap: 8 }}>
+          {headerActions}
+          <span className={`badge badge-${contract.status}`}>{contract.status}</span>
+        </div>
       </div>
 
       <p className="small muted" style={{ margin: '6px 0 12px' }}>
