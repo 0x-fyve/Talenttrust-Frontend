@@ -31,6 +31,15 @@ import { normalizeAddress } from "@/lib/stellar/address";
 import { AddressInput, type AddressInputHandle } from "@/components/forms/AddressInput";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { WatchToggle } from "@/components/WatchToggle";
+import { useOptionalToast } from "@/components/toast/ToastProvider";
+
+const asContract = (payload: unknown): EscrowContract | null => {
+  if (!payload || typeof payload !== "object") return null;
+  const obj = payload as { data?: EscrowContract; id?: number };
+  if (obj.data && typeof obj.data.id === "number") return obj.data;
+  if (typeof obj.id === "number") return payload as EscrowContract;
+  return null;
+};
 
 function EscrowCardSkeleton() {
   return (
@@ -56,6 +65,7 @@ function EscrowCardSkeleton() {
 
 export function EscrowDashboard() {
   const confirm = useConfirm();
+  const toast = useOptionalToast();
   const contractStatus = useOptionalContractStatus()?.status;
   const router = useRouter();
   const pathname = usePathname();
@@ -161,6 +171,7 @@ export function EscrowDashboard() {
     id: number | "new",
     fn: () => Promise<unknown>,
     messages?: { pending: string; success: string },
+    onSuccess?: (result: unknown) => void,
   ) => {
     try {
       assertNotPaused({ status: contractStatus });
@@ -174,18 +185,26 @@ export function EscrowDashboard() {
     setError(null);
     if (messages) setAnnouncement(messages.pending);
     try {
-      await fn();
+      const result = await fn();
       await load();
       if (messages) setAnnouncement(messages.success);
+      onSuccess?.(result);
     } catch (e) {
       if (e instanceof ApiError && e.kind === "aborted") return;
       const detail = e instanceof ApiError ? e.message : (e as Error).message;
       const message = e instanceof ApiError ? e.userMessage : detail;
       setError({ message, detail });
       setAnnouncement(`Error: ${message}`);
+      toast.error(detail);
     } finally {
       setBusy(null);
     }
+  };
+
+  const viewEscrow = (id: number) => {
+    const el = document.getElementById(`escrow-${id}`);
+    el?.scrollIntoView({ block: "center" });
+    el?.focus({ preventScroll: true });
   };
 
   const create = (e: FormEvent) => {
@@ -227,6 +246,16 @@ export function EscrowDashboard() {
         body: { title: form.title, client, freelancer, milestones },
       }),
       { pending: "Creating escrow…", success: "Escrow created" },
+      (result) => {
+        const created = asContract(result);
+        if (created?.id) {
+          toast.success(`Escrow #${created.id} created`, {
+            action: { label: "View escrow", onClick: () => viewEscrow(created.id) },
+          });
+        } else {
+          toast.success("Escrow created");
+        }
+      },
     );
   };
 
@@ -391,6 +420,7 @@ export function EscrowDashboard() {
                     body: { amount },
                   }),
                 { pending: `Funding escrow #${contract.id}…`, success: `Escrow #${contract.id} funded` },
+                () => toast.success(`Escrow #${contract.id} funded`),
               )
             }
             onReleaseNext={(contract, milestoneIndex) =>
@@ -401,6 +431,7 @@ export function EscrowDashboard() {
                     method: "POST",
                   }),
                 { pending: "Releasing milestone…", success: "Milestone released" },
+                () => toast.success(`Escrow #${contract.id}: milestone released`),
               )
             }
             onDispute={(contract, trigger) => {
@@ -422,6 +453,7 @@ export function EscrowDashboard() {
                   contract.id,
                   () => api(`/api/v1/contracts/${contract.id}/cancel`, { method: "POST" }),
                   { pending: "Cancelling escrow…", success: "Escrow cancelled" },
+                  () => toast.success(`Escrow #${contract.id} cancelled`),
                 );
               }
             }}
@@ -434,6 +466,7 @@ export function EscrowDashboard() {
                     body: { freelancerBps: 5000 },
                   }),
                 { pending: "Resolving dispute…", success: "Dispute resolved" },
+                () => toast.success(`Escrow #${contract.id} resolved`),
               )
             }
             onRate={(contract, rating) =>
@@ -445,6 +478,7 @@ export function EscrowDashboard() {
                     body: { rating },
                   }),
                 { pending: "Submitting rating…", success: "Rating submitted" },
+                () => toast.success(`Rating submitted for escrow #${contract.id}`),
               )
             }
           />
@@ -460,7 +494,11 @@ export function EscrowDashboard() {
           contract={disputeContract}
           triggerRef={disputeTriggerRef}
           onClose={() => setDisputeContract(null)}
-          onSuccess={load}
+          onSuccess={async () => {
+            const id = disputeContract.id;
+            await load();
+            toast.success(`Escrow #${id} disputed`);
+          }}
         />
       )}
     </div>

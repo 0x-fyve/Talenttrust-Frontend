@@ -41,7 +41,7 @@ export function EscrowCard({
   const headingId = `escrow-heading-${contract.id}`;
 
   return (
-    <article className="card" aria-busy={busy}>
+    <article className="card" id={`escrow-${contract.id}`} tabIndex={-1} aria-busy={busy}>
       <div className="row" style={{ justifyContent: 'space-between' }}>
         <h3 id={headingId} style={{ margin: 0 }}>
           #{contract.id} {contract.title}
