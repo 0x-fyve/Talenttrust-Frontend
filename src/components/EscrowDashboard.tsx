@@ -10,7 +10,7 @@ import {
 } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { api, ApiError, EscrowContract } from "@/lib/api";
+import { api, ApiError, EscrowContract, unwrapContract } from "@/lib/api";
 import {
   applyQuery,
   ContractQuery,
@@ -186,7 +186,19 @@ export function EscrowDashboard() {
     if (messages) setAnnouncement(messages.pending);
     try {
       const result = await fn();
-      await load();
+      // Write the returned contract into local state; only fall back to a
+      // full reload when the response does not contain a contract.
+      const updated = unwrapContract(result);
+      if (updated) {
+        setContracts((prev) => {
+          if (!prev) return [updated];
+          const exists = prev.some((c) => c.id === updated.id);
+          return exists ? prev.map((c) => (c.id === updated.id ? updated : c)) : [updated, ...prev];
+        });
+      } else {
+        // Endpoints that don't return a contract (e.g. rate) require a refresh.
+        await load();
+      }
       if (messages) setAnnouncement(messages.success);
       onSuccess?.(result);
     } catch (e) {
