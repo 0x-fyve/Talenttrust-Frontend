@@ -28,6 +28,29 @@ import { useOptionalContractStatus } from "@/components/ContractStatusProvider";
 import { assertNotPaused } from "@/lib/stellar/status";
 import { normalizeAddress } from "@/lib/stellar/address";
 import { AddressInput, type AddressInputHandle } from "@/components/forms/AddressInput";
+import { Skeleton } from "@/components/ui/Skeleton";
+
+function EscrowCardSkeleton() {
+  return (
+    <div className="card skeleton-card">
+      <div className="row" style={{ justifyContent: 'space-between' }}>
+        <Skeleton width="55%" height="1.2em" />
+        <Skeleton width={84} height={22} radius={999} />
+      </div>
+      <Skeleton width="75%" />
+      <Skeleton variant="block" width="100%" height={8} radius={999} />
+      <Skeleton width="60%" />
+      <div className="stack" style={{ gap: 8, margin: '12px 0' }}>
+        <Skeleton width="80%" />
+        <Skeleton width="65%" />
+      </div>
+      <div className="row">
+        <Skeleton variant="block" width={110} height={34} />
+        <Skeleton variant="block" width={110} height={34} />
+      </div>
+    </div>
+  );
+}
 
 export function EscrowDashboard() {
   const confirm = useConfirm();
@@ -316,7 +339,12 @@ export function EscrowDashboard() {
             `Showing ${result.from}–${result.to} of ${result.total} escrows`}
         </p>
         {contracts === null && (
-          <div className="card muted">Loading escrows...</div>
+          <div className="skeleton-cards" role="status" aria-live="polite">
+            <span className="sr-only">Loading…</span>
+            {[0, 1, 2].map((i) => (
+              <EscrowCardSkeleton key={i} />
+            ))}
+          </div>
         )}
         {contracts !== null &&
           result.total === 0 &&
