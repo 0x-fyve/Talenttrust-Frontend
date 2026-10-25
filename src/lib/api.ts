@@ -240,3 +240,29 @@ export function unwrapContract(payload: unknown): EscrowContract | null {
   if (typeof obj.id === 'number' && 'status' in obj) return payload as EscrowContract;
   return null;
 }
+
+/** View filter values persisted in the URL ?view= param. */
+export type ViewFilter = 'all' | 'client' | 'freelancer';
+
+/**
+ * Fetch escrow contracts with optional server-side filters.
+ *
+ * The backend supports:
+ *   ?party=<address>  – returns contracts where client OR freelancer equals address
+ *   ?status=<status>  – filter by status
+ *
+ * Uses URLSearchParams so the query string is always correctly encoded.
+ */
+export async function listContracts(opts?: {
+  party?: string;
+  status?: EscrowContract['status'];
+}): Promise<EscrowContract[]> {
+  const params = new URLSearchParams();
+  if (opts?.party) params.set('party', opts.party);
+  if (opts?.status) params.set('status', opts.status);
+  const qs = params.toString();
+  const res = await api<{ data: EscrowContract[] }>(
+    `/api/v1/contracts${qs ? `?${qs}` : ''}`,
+  );
+  return res.data;
+}

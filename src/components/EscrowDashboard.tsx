@@ -37,6 +37,16 @@ import { normalizeAddress } from "@/lib/stellar/address";
 import { AddressInput, type AddressInputHandle } from "@/components/forms/AddressInput";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { WatchToggle } from "@/components/WatchToggle";
+import { ViewFilterControl } from "./ViewFilterControl";
+import { RoleChip } from "./RoleChip";
+import { getAddress } from "@/lib/stellar/freighter";
+import type { ViewFilter } from "@/lib/api";
+
+/** Coerce any string from the URL into a valid ViewFilter, defaulting to "all". */
+function toViewFilter(raw: string | null): ViewFilter {
+  if (raw === "client" || raw === "freelancer") return raw;
+  return "all";
+}
 import { useOptionalToast } from "@/components/toast/ToastProvider";
 
 const asContract = (payload: unknown): EscrowContract | null => {
@@ -78,6 +88,22 @@ export function EscrowDashboard() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const query = useMemo(() => parseQuery(searchParams), [searchParams]);
+  // "My escrows": All / As client / As freelancer, persisted as ?view=
+  const view = toViewFilter(searchParams.get("view"));
+  const [walletAddress, setWalletAddress] = useState<string | null>(null);
+  useEffect(() => {
+    let active = true;
+    getAddress()
+      .then((address) => active && setWalletAddress(address || null))
+      .catch(() => active && setWalletAddress(null));
+    return () => {
+      active = false;
+    };
+  }, []);
+  // Role views only apply once a wallet is connected.
+  const roleView: ViewFilter = walletAddress ? view : "all";
+  // Only refetch when the server-side filter actually changes.
+  const party = roleView !== "all" && walletAddress ? walletAddress : null;
   const [search, setSearch] = useState(query.q);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const disputeTriggerRef = useRef<HTMLButtonElement>(null);
@@ -118,9 +144,12 @@ export function EscrowDashboard() {
     const controller = new AbortController();
     loadController.current = controller;
     try {
-      const qs = query.status
-        ? `?status=${encodeURIComponent(query.status)}`
-        : "";
+      // Status is filtered by the API; a role view also pre-filters by ?party=
+      // (the wallet as client OR freelancer) and is tightened client-side.
+      const params = new URLSearchParams();
+      if (party) params.set("party", party);
+      if (query.status) params.set("status", query.status);
+      const qs = params.toString() ? `?${params.toString()}` : "";
       const res = await api<{ data: EscrowContract[] }>(
         `/api/v1/contracts${qs}`,
         { signal: controller.signal },
@@ -139,7 +168,7 @@ export function EscrowDashboard() {
       });
       setContracts([]);
     }
-  }, [query.status]);
+  }, [query.status, party]);
 
   useEffect(() => {
     load();
@@ -148,11 +177,38 @@ export function EscrowDashboard() {
 
   const update = useCallback(
     (patch: Partial<ContractQuery>) => {
-      const qs = toSearchParams({ ...query, page: 1, ...patch }).toString();
+      const params = toSearchParams({ ...query, page: 1, ...patch });
+      if (view !== "all") params.set("view", view);
+      const qs = params.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    },
+    [query, view, router, pathname],
+  );
+
+  const changeView = useCallback(
+    (next: ViewFilter) => {
+      const params = toSearchParams({ ...query, page: 1 });
+      if (next !== "all") params.set("view", next);
+      const qs = params.toString();
       router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
     },
     [query, router, pathname],
   );
+
+  const byRole = useCallback(
+    (list: EscrowContract[]) =>
+      roleView === "all" || !walletAddress
+        ? list
+        : list.filter((c) => (roleView === "client" ? c.client === walletAddress : c.freelancer === walletAddress)),
+    [roleView, walletAddress],
+  );
+
+  const roleFor = (c: EscrowContract): "client" | "freelancer" | null => {
+    if (!walletAddress) return null;
+    if (c.client === walletAddress) return "client";
+    if (c.freelancer === walletAddress) return "freelancer";
+    return null;
+  };
 
   useEffect(() => {
     setSearch(query.q);
@@ -165,12 +221,12 @@ export function EscrowDashboard() {
   }, [search, query.q, update]);
 
   const result = useMemo(
-    () => applyQuery(contracts === null ? [] : optimisticContracts, query),
-    [contracts, optimisticContracts, query],
+    () => applyQuery(contracts === null ? [] : byRole(optimisticContracts), query),
+    [contracts, optimisticContracts, query, byRole],
   );
   const visible = useMemo(
-    () => (contracts ? filterContracts(contracts, query) : null),
-    [contracts, query],
+    () => (contracts ? filterContracts(byRole(contracts), query) : null),
+    [contracts, query, byRole],
   );
   const filtered = query.status !== "" || query.q !== "";
 
@@ -495,6 +551,7 @@ export function EscrowDashboard() {
         <div className="row list-actions">
           <ExportMenu contracts={visible} />
         </div>
+        <ViewFilterControl value={roleView} onChange={changeView} walletConnected={Boolean(walletAddress)} />
         {error && (
           <div className="alert alert-error" role="alert" title={error.detail}>
             {error.message}{" "}
@@ -556,7 +613,11 @@ export function EscrowDashboard() {
             </div>
           ) : (
             <div className="card muted">
-              No escrows yet. Create the first one.
+              {roleView === "client"
+                ? "You have no escrows as client yet."
+                : roleView === "freelancer"
+                  ? "You have no escrows as freelancer yet."
+                  : "No escrows yet. Create the first one."}
             </div>
           ))}
         {result.items.map((c) => (
@@ -567,7 +628,12 @@ export function EscrowDashboard() {
             optimistic={pendingIds.has(c.id)}
             error={cardErrors[c.id] ?? null}
             onRetry={() => retryRef.current[c.id]?.()}
-            headerActions={<WatchToggle contract={c} />}
+            headerActions={
+              <>
+                {roleFor(c) && <RoleChip role={roleFor(c)!} />}
+                <WatchToggle contract={c} />
+              </>
+            }
             extraActions={
               (c.status === "Completed" || c.status === "Resolved" || c.status === "Cancelled") && (
                 <Link href={`/contracts/${c.id}/statement`} className="btn btn-secondary btn-sm">

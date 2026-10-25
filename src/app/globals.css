@@ -1041,3 +1041,72 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
 .offline-page { display: grid; place-items: center; min-height: 60vh; padding: 48px 16px; }
 .offline-inner { max-width: 440px; width: 100%; text-align: center; display: grid; gap: 20px; }
 .offline-icon { display: flex; justify-content: center; color: var(--muted); }
+
+
+/* View filter – segmented radiogroup */
+.view-filter {
+  display: inline-flex;
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--surface-2);
+  width: 100%;
+}
+.view-filter__btn {
+  flex: 1;
+  padding: 8px 14px;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  border-right: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  transition: background 0.12s ease, color 0.12s ease;
+  /* Ensure visible focus ring for keyboard users */
+  outline-offset: -2px;
+}
+.view-filter__btn:last-child { border-right: none; }
+.view-filter__btn:hover:not(.view-filter__btn--disabled):not(.view-filter__btn--active) {
+  background: var(--surface);
+  color: var(--text);
+}
+.view-filter__btn--active {
+  background: var(--brand);
+  color: var(--brand-ink);
+}
+.view-filter__btn--disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.view-filter__btn:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: -2px;
+  position: relative;
+  z-index: 1;
+}
+@media (max-width: 375px) {
+  .view-filter__btn { padding: 8px 6px; font-size: 0.80rem; }
+}
+
+/* Role chip */
+.role-chip {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.6;
+}
+.role-chip--client {
+  background: color-mix(in srgb, var(--brand) 14%, transparent);
+  color: var(--brand);
+  border: 1px solid color-mix(in srgb, var(--brand) 30%, transparent);
+}
+.role-chip--freelancer {
+  background: color-mix(in srgb, var(--brand-2) 14%, transparent);
+  color: var(--brand-2);
+  border: 1px solid color-mix(in srgb, var(--brand-2) 30%, transparent);
+}
