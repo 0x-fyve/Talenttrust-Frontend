@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { useEffect, useRef } from 'react';
 import nav from '@/lib/nav.json';
 import { useDisclosure } from '@/hooks/useDisclosure';
+import { WalletButton } from '@/components/wallet/WalletButton';
 import { CommandPalette } from '@/components/palette/CommandPalette';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { NotificationBell } from '@/components/NotificationBell';
@@ -80,6 +81,7 @@ export function Header() {
           >
             Launch app
           </Link>
+          <WalletButton />
           <ThemeToggle />
         </nav>
         <div className="header-actions">
@@ -128,6 +130,9 @@ export function Header() {
         >
           Launch app
         </Link>
+        <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--border)' }}>
+          <WalletButton />
+        </div>
         <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--border)' }}>
           <ThemeToggle />
         </div>

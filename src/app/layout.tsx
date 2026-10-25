@@ -9,6 +9,8 @@ import { ConfirmProvider } from '@/components/ui/ConfirmProvider';
 import { NotificationsProvider } from '@/components/NotificationsProvider';
 import { ToastProvider } from '@/components/toast/ToastProvider';
 import { SwrProvider } from '@/lib/swr';
+import { WalletProvider } from '@/components/wallet/WalletProvider';
+import { NetworkGuard } from '@/components/wallet/NetworkGuard';
 import ServiceWorkerRegister from '@/components/ServiceWorkerRegister';
 import OfflineIndicator from '@/components/OfflineIndicator';
 import { site, explorerUrl, apiDocsUrl } from '@/lib/site';
@@ -50,45 +52,48 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body>
         <ToastProvider>
-          <SwrProvider>
-            <ConfirmProvider>
-              <ContractStatusProvider>
-                <NotificationsProvider>
-                  <a href="#main" className="skip">
-                    Skip to content
-                  </a>
-                  <Header />
-                  <OfflineIndicator />
-                  <PausedBanner />
-                  <main id="main">{children}</main>
-                  <footer className="footer">
-                    <div className="container footer-inner">
-                      <div className="footer-brand">
-                        <span>
-                          <strong style={{ color: 'var(--text)' }}>TalentTrust</strong> &middot; {site.tagline}
-                        </span>
-                        <ContractStatusPill />
+          <WalletProvider>
+            <SwrProvider>
+              <ConfirmProvider>
+                <ContractStatusProvider>
+                  <NotificationsProvider>
+                    <a href="#main" className="skip">
+                      Skip to content
+                    </a>
+                    <Header />
+                    <NetworkGuard />
+                    <OfflineIndicator />
+                    <PausedBanner />
+                    <main id="main">{children}</main>
+                    <footer className="footer">
+                      <div className="container footer-inner">
+                        <div className="footer-brand">
+                          <span>
+                            <strong style={{ color: 'var(--text)' }}>TalentTrust</strong> &middot; {site.tagline}
+                          </span>
+                          <ContractStatusPill />
+                        </div>
+                        <div className="footer-links">
+                          <Link href="/docs">Docs</Link>
+                          <Link href="/status">Status</Link>
+                          <a href={apiDocsUrl} target="_blank" rel="noreferrer">
+                            API
+                          </a>
+                          <a href={explorerUrl} target="_blank" rel="noreferrer">
+                            Contract
+                          </a>
+                          <a href={site.github} target="_blank" rel="noreferrer">
+                            GitHub
+                          </a>
+                        </div>
                       </div>
-                      <div className="footer-links">
-                        <Link href="/docs">Docs</Link>
-                        <Link href="/status">Status</Link>
-                        <a href={apiDocsUrl} target="_blank" rel="noreferrer">
-                          API
-                        </a>
-                        <a href={explorerUrl} target="_blank" rel="noreferrer">
-                          Contract
-                        </a>
-                        <a href={site.github} target="_blank" rel="noreferrer">
-                          GitHub
-                        </a>
-                      </div>
-                    </div>
-                  </footer>
-                  <ServiceWorkerRegister />
-                </NotificationsProvider>
-              </ContractStatusProvider>
-            </ConfirmProvider>
-          </SwrProvider>
+                    </footer>
+                    <ServiceWorkerRegister />
+                  </NotificationsProvider>
+                </ContractStatusProvider>
+              </ConfirmProvider>
+            </SwrProvider>
+          </WalletProvider>
         </ToastProvider>
       </body>
     </html>
