@@ -5,9 +5,12 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useOptimistic,
   useRef,
   useState,
+  useTransition,
 } from "react";
+import { contractsReducer, type OptimisticAction } from "@/lib/optimistic";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { api, ApiError, EscrowContract, Reputation, unwrapContract, unwrapReputation } from "@/lib/api";
@@ -79,6 +82,14 @@ export function EscrowDashboard() {
     null,
   );
   const [contracts, setContracts] = useState<EscrowContract[] | null>(null);
+  // Release and Fund update the card instantly via useOptimistic; React drops
+  // the optimistic state when the transition settles, so a failure rolls back.
+  const [optimisticContracts, dispatchOptimistic] = useOptimistic(contracts ?? [], contractsReducer);
+  const [, startTransition] = useTransition();
+  const [pendingIds, setPendingIds] = useState<Set<number>>(() => new Set());
+  const pendingRef = useRef<Set<number>>(new Set());
+  const [cardErrors, setCardErrors] = useState<Record<number, { message: string; detail?: string }>>({});
+  const retryRef = useRef<Record<number, () => void>>({});
   const [error, setError] = useState<{
     message: string;
     detail?: string;
@@ -151,8 +162,8 @@ export function EscrowDashboard() {
   }, [search, query.q, update]);
 
   const result = useMemo(
-    () => applyQuery(contracts ?? [], query),
-    [contracts, query],
+    () => applyQuery(contracts === null ? [] : optimisticContracts, query),
+    [contracts, optimisticContracts, query],
   );
   const visible = useMemo(
     () => (contracts ? filterContracts(contracts, query) : null),
@@ -214,6 +225,70 @@ export function EscrowDashboard() {
     } finally {
       setBusy(null);
     }
+  };
+
+  const setPending = (id: number, on: boolean) => {
+    const next = new Set(pendingRef.current);
+    if (on) next.add(id);
+    else next.delete(id);
+    pendingRef.current = next;
+    setPendingIds(next);
+  };
+
+  /**
+   * Optimistic Release / Fund: the card updates immediately, the request runs
+   * inside an async transition, and on success the server response wins. On
+   * failure the optimistic state is discarded and a card-local error with a
+   * Retry button is shown.
+   */
+  const optimisticAct = (
+    contractId: number,
+    action: OptimisticAction,
+    fn: () => Promise<unknown>,
+    messages: { pending: string; success: string },
+    onSuccess?: () => void,
+  ) => {
+    if (pendingRef.current.has(contractId)) return; // no double-submit
+    try {
+      assertNotPaused({ status: contractStatus });
+    } catch (e) {
+      setCardErrors((prev) => ({ ...prev, [contractId]: { message: (e as Error).message } }));
+      setAnnouncement(`Error: ${(e as Error).message}`);
+      return;
+    }
+    retryRef.current[contractId] = () => optimisticAct(contractId, action, fn, messages, onSuccess);
+    setCardErrors((prev) => {
+      const next = { ...prev };
+      delete next[contractId];
+      return next;
+    });
+    setAnnouncement(messages.pending);
+    setPending(contractId, true);
+    startTransition(async () => {
+      dispatchOptimistic(action);
+      try {
+        const response = await fn();
+        const updated = unwrapContract(response);
+        if (updated) {
+          startTransition(() => {
+            setContracts((prev) => (prev ? prev.map((c) => (c.id === updated.id ? updated : c)) : [updated]));
+          });
+        } else {
+          await load();
+        }
+        setAnnouncement(messages.success);
+        onSuccess?.();
+      } catch (e) {
+        if (e instanceof ApiError && e.kind === "aborted") return;
+        const detail = e instanceof ApiError ? e.message : (e as Error).message;
+        const message = e instanceof ApiError ? e.userMessage : detail || "Action failed. Please retry.";
+        setCardErrors((prev) => ({ ...prev, [contractId]: { message, detail } }));
+        setAnnouncement(`Error: ${message}`);
+        toast.error(detail);
+      } finally {
+        setPending(contractId, false);
+      }
+    });
   };
 
   // Rating has its own flow: the endpoint returns a Reputation (not a contract)
@@ -454,7 +529,10 @@ export function EscrowDashboard() {
           <EscrowCard
             key={c.id}
             contract={c}
-            busy={busy === c.id}
+            busy={busy === c.id || pendingIds.has(c.id)}
+            optimistic={pendingIds.has(c.id)}
+            error={cardErrors[c.id] ?? null}
+            onRetry={() => retryRef.current[c.id]?.()}
             headerActions={<WatchToggle contract={c} />}
             extraActions={
               (c.status === "Completed" || c.status === "Resolved" || c.status === "Cancelled") && (
@@ -464,8 +542,9 @@ export function EscrowDashboard() {
               )
             }
             onFund={(contract, amount) =>
-              act(
+              optimisticAct(
                 contract.id,
+                { type: "deposit", contractId: contract.id, amount },
                 () =>
                   api(`/api/v1/contracts/${contract.id}/deposit`, {
                     method: "POST",
@@ -476,8 +555,9 @@ export function EscrowDashboard() {
               )
             }
             onReleaseNext={(contract, milestoneIndex) =>
-              act(
+              optimisticAct(
                 contract.id,
+                { type: "release", contractId: contract.id, milestoneIndex },
                 () =>
                   api(`/api/v1/contracts/${contract.id}/milestones/${milestoneIndex}/release`, {
                     method: "POST",

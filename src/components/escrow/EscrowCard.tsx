@@ -9,6 +9,11 @@ const short = (a: string) => (a.length > 14 ? `${a.slice(0, 6)}...${a.slice(-4)}
 export interface EscrowCardProps {
   contract: EscrowContract;
   busy?: boolean;
+  /** An optimistic update is in flight: the card shows the expected result. */
+  optimistic?: boolean;
+  /** Card-local error for the last failed action, with an optional Retry. */
+  error?: { message: string; detail?: string } | null;
+  onRetry?: () => void;
   /** Extra controls rendered next to the status badge (e.g. a watch toggle). */
   headerActions?: ReactNode;
   /** Extra controls rendered after the built-in action buttons. */
@@ -26,6 +31,9 @@ export interface EscrowCardProps {
 export function EscrowCard({
   contract,
   busy = false,
+  optimistic = false,
+  error = null,
+  onRetry,
   headerActions,
   extraActions,
   ratingSlot,
@@ -45,7 +53,13 @@ export function EscrowCard({
   const headingId = `escrow-heading-${contract.id}`;
 
   return (
-    <article className="card" id={`escrow-${contract.id}`} tabIndex={-1} aria-busy={busy}>
+    <article
+      className="card"
+      id={`escrow-${contract.id}`}
+      tabIndex={-1}
+      aria-busy={busy}
+      style={optimistic ? { opacity: 0.8 } : undefined}
+    >
       <div className="row" style={{ justifyContent: 'space-between' }}>
         <h3 id={headingId} style={{ margin: 0 }}>
           #{contract.id} {contract.title}
@@ -86,6 +100,22 @@ export function EscrowCard({
         showSummary={false}
         onRelease={(index) => onReleaseNext?.(contract, index)}
       />
+
+      {error && (
+        <div className="alert alert-error row" role="alert" title={error.detail} style={{ marginTop: 10, justifyContent: 'space-between' }}>
+          <span>{error.message}</span>
+          {onRetry && (
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={onRetry}
+              aria-label={`Retry failed action for escrow #${contract.id}`}
+            >
+              Retry
+            </button>
+          )}
+        </div>
+      )}
 
       <div className="row">
         {active && contract.fundedAmount < contract.totalAmount && (
