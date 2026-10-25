@@ -2,6 +2,7 @@
 
 import type { ReactNode } from 'react';
 import type { EscrowContract } from '@/lib/api';
+import { MilestoneTimeline } from '@/components/milestones/MilestoneTimeline';
 
 const short = (a: string) => (a.length > 14 ? `${a.slice(0, 6)}...${a.slice(-4)}` : a);
 
@@ -79,20 +80,12 @@ export function EscrowCard({
         {contract.fundedAmount - contract.releasedAmount} {contract.token}
       </p>
 
-      <ul className="milestones" aria-label={`Milestones for escrow #${contract.id}`}>
-        {contract.milestones.map((m) => (
-          <li key={m.index}>
-            <span className="truncate">
-              <span className="sr-only">{m.released ? 'Completed milestone: ' : 'Pending milestone: '}</span>
-              <span aria-hidden="true">{m.released ? '[x]' : '[ ]'} </span>
-              {m.title}
-            </span>
-            <span className="mono">
-              {m.amount} {contract.token}
-            </span>
-          </li>
-        ))}
-      </ul>
+      <MilestoneTimeline
+        contract={contract}
+        busy={busy}
+        showSummary={false}
+        onRelease={(index) => onReleaseNext?.(contract, index)}
+      />
 
       <div className="row">
         {active && contract.fundedAmount < contract.totalAmount && (
