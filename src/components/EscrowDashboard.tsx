@@ -37,6 +37,13 @@ import { normalizeAddress } from "@/lib/stellar/address";
 import { AddressInput, type AddressInputHandle } from "@/components/forms/AddressInput";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { WatchToggle } from "@/components/WatchToggle";
+import {
+  MilestoneBuilder,
+  newMilestone,
+  validateMilestones,
+  type MilestoneInput,
+  type MilestoneValidation,
+} from "@/components/MilestoneBuilder";
 import { ViewFilterControl } from "./ViewFilterControl";
 import { RoleChip } from "./RoleChip";
 import { getAddress } from "@/lib/stellar/freighter";
@@ -135,8 +142,13 @@ export function EscrowDashboard() {
     title: 'Website redesign',
     client: '',
     freelancer: '',
-    milestones: 'Design: 300, Build: 700',
   });
+  const [milestoneRows, setMilestoneRows] = useState<MilestoneInput[]>(() => [
+    newMilestone("Design", "300"),
+    newMilestone("Build", "700"),
+  ]);
+  const [milestoneErrors, setMilestoneErrors] = useState<MilestoneValidation | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
 
   // Status is filtered by the API, the rest is done client-side
   const load = useCallback(async () => {
@@ -444,16 +456,23 @@ export function EscrowDashboard() {
       return;
     }
 
-    const milestones = form.milestones
-      .split(",")
-      .map((part) => part.trim())
-      .filter(Boolean)
-      .map((part, i) => {
-        const [title, amount] = part.includes(":")
-          ? part.split(":")
-          : [`Milestone ${i + 1}`, part];
-        return { title: title.trim(), amount: Number(amount) };
-      });
+    const check = validateMilestones(milestoneRows);
+    setMilestoneErrors(check);
+    if (!check.valid) {
+      // Focus the first invalid milestone field.
+      const first = check.rows.findIndex((r) => r.title || r.amount);
+      if (first >= 0) {
+        const field = check.rows[first].title ? "title" : "amount";
+        requestAnimationFrame(() =>
+          formRef.current
+            ?.querySelectorAll<HTMLInputElement>(`.milestone-row input[data-field="${field}"]`)
+            [first]?.focus(),
+        );
+      }
+      return;
+    }
+    // Titles are sent verbatim (they may contain ":" or ","), in row order.
+    const milestones = milestoneRows.map((row) => ({ title: row.title.trim(), amount: Number(row.amount.trim()) }));
     act("new", () =>
       api('/api/v1/contracts', {
         method: 'POST',
@@ -489,6 +508,7 @@ export function EscrowDashboard() {
           Create escrow
         </h2>
         <form
+          ref={formRef}
           className="card form"
           onSubmit={create}
           aria-labelledby="new-escrow"
@@ -526,17 +546,14 @@ export function EscrowDashboard() {
             description="Must be a different account from the client."
             error={crossFieldError}
           />
-          <div className="field">
-            <label htmlFor="milestones">Milestones</label>
-            <input
-              id="milestones"
-              className="input"
-              value={form.milestones}
-              onChange={(e) => setForm({ ...form, milestones: e.target.value })}
-              required
-            />
-            <span className="small muted">Comma separated, as Title: amount</span>
-          </div>
+          <MilestoneBuilder
+            milestones={milestoneRows}
+            onChange={(rows) => {
+              setMilestoneRows(rows);
+              if (milestoneErrors) setMilestoneErrors(validateMilestones(rows));
+            }}
+            errors={milestoneErrors}
+          />
           <button
             className="btn btn-primary"
             type="submit"

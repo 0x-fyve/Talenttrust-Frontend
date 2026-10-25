@@ -1110,3 +1110,11 @@ button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visibl
   color: var(--brand-2);
   border: 1px solid color-mix(in srgb, var(--brand-2) 30%, transparent);
 }
+
+/* Milestone builder */
+.milestone-builder { border: 0; padding: 0; margin: 0; display: grid; gap: 10px; min-width: 0; }
+.milestone-builder > legend { font-weight: 600; font-size: 0.9rem; padding: 0; margin-bottom: 4px; }
+.milestone-rows { display: grid; gap: 10px; }
+.milestone-row { display: grid; gap: 8px; padding: 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); min-width: 0; }
+.milestone-row-actions { gap: 6px; }
+.milestone-total { margin: 0; font-weight: 600; }
